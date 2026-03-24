@@ -5,9 +5,9 @@
 **Nom du protocole**: AAC (Agent-Agent Company) Protocol
 
 **Auteur**: Ziming Song (Jack Song)  
-**Infos sur l'auteur**: Un élève du collège HD School dans le district de Chaoyang, Pékin, a indépendamment réalisé cette création en 2 heures en utilisant Cursor AI à la maison.
+**Infos sur l'auteur**: Un élève du collège HD School dans le district de Chaoyang, Pékin, a réalisé cette implémentation de référence en 2 heures avec l'assistance de l'IA.
 
-**Description du protocole**: Un protocole de marché de services d'agents décentralisé, construit en référence à la mise en œuvre du protocole Google A2A.
+**Description du protocole**: Un protocole de marché de services d'agents basé sur une **plateforme centralisée**, construit en référence au protocole Google A2A. Comme pour les SaaS / magasins d'applications, l'opérateur de la plateforme agit en tant que tiers de confiance pour la gestion des fonds et des données.
 
 ---
 
@@ -26,7 +26,7 @@
 
 ### 1.1 Qu'est-ce que le protocole AAC
 
-Le protocole AAC (Agent-Agent Company) est un protocole ouvert et décentralisé pour le marché des services d'agents IA. Inspiré par les concepts de conception avancés du protocole Google A2A (Agent-to-Agent), AAC crée une plateforme standardisée connectant les demandeurs de services (utilisateurs) avec les fournisseurs de services (créateurs/agents).
+Le protocole AAC (Agent-Agent Company) est une implémentation de référence pour le marché des services d'agents IA basée sur une **plateforme centralisée**. Inspiré par les concepts de conception avancés du protocole Google A2A (Agent-to-Agent), AAC crée une plateforme standardisée connectant les demandeurs de services (utilisateurs) avec les fournisseurs de services (créateurs/agents).
 
 ### 1.2 Objectifs du protocole
 
@@ -41,21 +41,21 @@ Les objectifs de conception du protocole AAC sont d'établir un écosystème de 
 
 ## 2. Philosophie de conception
 
-### 2.1 Autonomie décentralisée
+### 2.1 Autonomie et gouvernance de la plateforme
 
-Le protocole AAC adopte une conception décentralisée sans nœud de contrôle unique :
+Le protocole AAC utilise une architecture de **plateforme centralisée**. L'opérateur de la plateforme fournit des services d'infrastructure:
 
-- **Autonomie des agents**: Chaque agent fonctionne indépendamment et prend des décisions autonomes
+- **Autonomie des agents**: Chaque agent fonctionne indépendamment et détermine autonome le contenu du service
 - **Autonomie des utilisateurs**: Les utilisateurs sélectionnent eux-mêmes les services et fournissent des évaluations
-- **Autonomie économique**: Le système de jetons permet l'échange de valeur pair-à-pair
+- **Gouvernance de la plateforme**: Le système de jetons est géré de manière uniforme par la plateforme pour assurer la stabilité économique
 
-### 2.2 Minimisation de la confiance
+### 2.2 Modèle de confiance de la plateforme
 
-Le protocole minimise le besoin de faire confiance à des tiers par des moyens techniques :
+Le protocole adopte explicitement des limites de confiance centralisées (comme les SaaS / magasins d'applications):
 
-- **Enregistrements en chaîne**: Toutes les transactions et les enregistrements d'évaluation sont immuables
-- **Transparence publique**: Toutes les règles et processus de prise de décision sont publiquement vérifiables
-- **Équilibre des jeux**: La conception des mécanismes incite au comportement honnête
+- **Registre de la plateforme**: Les transactions et les enregistrements d'évaluation sont gérés par la base de données de la plateforme avec support d'audit
+- **Opération transparente**: Les règles de la plateforme et la politique de commissions sont publiquement transparentes
+- **Résolution des litiges**: La plateforme fournit une résolution des litiges et un support client
 
 ---
 
