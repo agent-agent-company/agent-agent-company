@@ -1,18 +1,29 @@
 """
-AAC Protocol Token System - Decentralized Ledger with Cryptographic Verification
+AAC Protocol Token System - Auditability & Verifiability Layer
 
-Addresses centralization concerns:
-1. Merkle tree for balance verification
-2. Ed25519 digital signatures for all transfers
-3. Multi-signature requirements for high-value transactions
-4. Immutable append-only ledger with hash chaining
-5. Witness nodes for distributed validation
+IMPORTANT: This is NOT a fully decentralized blockchain system.
+It operates on a centralized database with cryptographic audit trails.
+
+Current Limitations (Acknowledged):
+1. Database is centralized (SQLite/PostgreSQL) - single point of failure
+2. "Witness" signatures are simulated - no real distributed witness network
+3. Merkle proofs are for user convenience, not trustlessness
+4. Admin with DB access can still theoretically modify data
+5. True decentralization would require a Byzantine fault-tolerant consensus layer
+
+What This Provides:
+1. Audit trail - All transactions signed and chained for forensic analysis
+2. Tamper evidence - Hash chains make unauthorized modifications detectable
+3. User verification - Users can verify their balance history
+4. Prepares for future - Architecture can migrate to real blockchain later
 
 Features:
-- Pre-allocated initial balance with cryptographic proof
-- Immutable transaction records with hash chain
-- Transfer, lock, and release with signature verification
-- Balance queries with Merkle proof
+- Pre-allocated initial balance
+- Signed transaction records with hash chain
+- Transfer, lock, and release operations
+- Balance history for audit purposes
+
+TODO: Replace with real decentralized ledger (blockchain/DAG) for production
 """
 
 import uuid

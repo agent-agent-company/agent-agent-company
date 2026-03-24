@@ -1,13 +1,28 @@
 """
-AAC Protocol Decentralized Registry
+AAC Protocol Federated Registry Architecture
 
-Addresses single point of failure concerns:
-1. DHT (Distributed Hash Table) for agent discovery without central server
-2. Gossip protocol for state synchronization between nodes
-3. Multi-node consensus for agent registration
-4. Local-first architecture - works offline, syncs when connected
+IMPORTANT: This is a DESIGN PROTOTYPE, not a production-ready DHT.
+Current implementation uses centralized database.
 
-No single Registry node - all nodes are equal peers.
+Current Limitations (Acknowledged):
+1. DHT is implemented as local storage only - no real distributed network
+2. Gossip protocol is stubbed - no actual peer-to-peer communication
+3. "Consensus" is simulated - no Byzantine fault tolerance
+4. All nodes currently rely on same centralized database
+5. True P2P would require libp2p, IPFS, or similar infrastructure
+
+What This Provides:
+1. Architecture blueprint - Shows how decentralization could work
+2. Interface definition - Methods that a real DHT would implement
+3. Federation concept - Multiple registries could sync (in theory)
+4. Migration path - Data model supports future decentralization
+
+This is a "decentralization-ready" architecture, not decentralized yet.
+
+TODO: Implement real libp2p-based DHT (Kademlia or Chord)
+TODO: Add WebRTC for browser-to-browser communication
+TODO: Implement Byzantine consensus (PBFT, HotStuff, etc.)
+TODO: Add IPFS for decentralized storage of agent metadata
 """
 
 import hashlib

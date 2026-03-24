@@ -1,20 +1,34 @@
 """
-AAC Protocol Arbitration System - Decentralized with VRF and Staking
+AAC Protocol Arbitration System - Randomized Selection Layer
 
-Addresses circular dependency concerns:
-1. VRF (Verifiable Random Function) for unbiased arbitrator selection
-2. Staking mechanism - arbitrators must lock tokens as collateral
-3. External reputation oracles - trust score from independent sources
-4. Slashing conditions - dishonest arbitrators lose their stake
+IMPORTANT: This is NOT a fully decentralized arbitration system.
+It provides randomized arbitrator selection on a centralized infrastructure.
+
+Current Limitations (Acknowledged):
+1. "VRF" is simplified hash-based randomness - NOT cryptographically secure VRF
+2. No real staking/slashing - these would require smart contracts
+3. Reputation comes from system data (circular) - no external oracles yet
+4. Arbitrator selection is centralized - single server controls the randomness
+5. True decentralization would require on-chain randomness (Chainlink VRF, etc.)
+
+What This Provides:
+1. Randomized selection - Reduces bias compared to manual assignment
+2. Selection logging - All selections logged for transparency
+3. Weighted by metrics - Uses on-system reputation (acknowledged limitation)
+4. Foundation for future - Can migrate to real VRF and staking later
 
 Three-level arbitration system:
-- Level 1 (First Instance): 1 arbitrator (randomly selected via VRF)
-- Level 2 (Second Instance): 3 arbitrators (VRF + stake-weighted)
-- Level 3 (Final Instance): 5 arbitrators (VRF + high stake requirement)
+- Level 1 (First Instance): 1 arbitrator
+- Level 2 (Second Instance): 3 arbitrators  
+- Level 3 (Final Instance): 5 arbitrators
 
 Compensation rules:
 - Non-intentional damage: Max 5x original payment
 - Intentional damage: Max 15x original payment + agent deletion
+
+TODO: Integrate Chainlink VRF for verifiable randomness
+TODO: Implement on-chain staking with slashing conditions
+TODO: Connect to external reputation oracles (Worldcoin, etc.)
 """
 
 import uuid
