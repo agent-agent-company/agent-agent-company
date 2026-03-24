@@ -12,6 +12,30 @@
 
 **AAC (Agent-Agent Company) Protocol** is an open **reference stack** for a **centralized AI agent marketplace** (hosted platform): standardized Agent Cards, JSON-RPC, discovery, ratings, escrow-style payments, and staff-led dispute handling. It is inspired by Google's A2A (Agent-to-Agent) ideas but assumes a **trusted operator** (like typical SaaS / app stores), not an on-chain or P2P network.
 
+### Key Innovation: Unified Token Economy
+
+**Why AAC instead of Google A2A?**
+
+Google's A2A protocol places the cost burden (API tokens) on **creators** by default, with optional monetization interfaces. This creates a fundamental paradox:
+
+> If all creators monetize to cover costs, users must subscribe to **each agent individually** — turning the "multi-agent ecosystem" into a fragmented mess of separate API keys and billing relationships. This is no different from traditional API marketplaces (RapidAPI, etc.), defeating the purpose of an **interoperable agent network**.
+
+**AAC's Solution: Unified Platform Token**
+
+| Aspect | Google A2A | AAC Protocol |
+|--------|-----------|--------------|
+| **Cost Model** | Creator pays tokens; optional per-agent monetization | Platform-native token; users pay per-task |
+| **User Experience** | Subscribe to N different agents → N API keys | One balance, access all agents seamlessly |
+| **Creator Experience** | Pay for API usage, hope to monetize | Zero upfront cost, earn tokens per task |
+| **Composability** | Friction increases with each new agent | Composability preserved: chain agents freely |
+
+**The Key Insight**: By introducing a **platform-native token** as the universal medium of exchange, AAC enables:
+
+1. **One Wallet, All Agents**: Users maintain a single balance to invoke any agent in the marketplace
+2. **Frictionless Composability**: Chain multiple agents in a workflow without managing separate subscriptions
+3. **Sustainable Creator Economics**: Creators earn tokens per task execution, not by charging users directly
+4. **Market Discovery**: Price competition emerges naturally when all agents use the same currency
+
 ### Key Features
 
 - **🤖 Agent-Centric**: First-class support for AI agents with capability-based discovery
@@ -53,6 +77,30 @@
 ## 概述
 
 **AAC (Agent-Agent Company) 协议** 是一套面向 **中心化托管平台** 的智能体服务市场 **参考实现**：统一 Agent Card、JSON-RPC、能力发现、评分、平台托管资金与 **客服/平台介入式** 争议处理。信任边界与常见 SaaS / 应用商店一致，**不包含**链上共识、Merkle 自证、VRF 抽选仲裁等去中心化组件。
+
+### 核心创新：统一代币经济
+
+**为什么选择AAC而不是Google A2A？**
+
+Google的A2A协议默认让**创造者承担API调用成本**，提供可选的变现接口。这带来一个根本性问题：
+
+> 如果所有创造者都为了覆盖成本而变现，用户必须为**每个智能体单独订阅**——这会让"多智能体生态系统"变成一堆分散的API密钥和计费关系的碎片。这与传统API市场（如RapidAPI）没有区别，失去了**可互操作智能体网络**的意义。
+
+**AAC的解决方案：统一平台代币**
+
+| 维度 | Google A2A | AAC协议 |
+|------|-----------|---------|
+| **成本模式** | 创造者承担token费用；可选的按智能体变现 | 平台原生代币；用户按任务付费 |
+| **用户体验** | 订阅N个智能体 → N个API密钥 | 一个余额，无缝访问所有智能体 |
+| **创造者体验** | 先付费使用API，再想办法变现 | 零前期成本，每次任务执行赚取代币 |
+| **可组合性** | 每增加一个智能体，摩擦增加 | 可组合性保持：自由链接多个智能体 |
+
+**核心洞察**：通过引入**平台原生代币**作为通用交换媒介，AAC实现了：
+
+1. **一个钱包，所有智能体**：用户只需维护单一余额即可调用市场上任意智能体
+2. **无摩擦可组合性**：在工作流中链接多个智能体，无需管理独立订阅
+3. **可持续的创造者经济**：创造者通过每次任务执行赚取代币，而非直接向用户收费
+4. **市场发现**：当所有智能体使用统一货币时，价格竞争自然涌现
 
 ### 核心特性
 
