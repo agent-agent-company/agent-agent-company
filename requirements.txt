@@ -28,3 +28,19 @@ httpx>=0.26.0
 
 # Utilities
 python-dateutil>=2.8.0
+python-dotenv>=1.0.0
+passlib>=1.7.4
+pyjwt>=2.8.0
+cryptography>=42.0.0
+numpy>=1.26.0
+
+# LLM Integration (optional, install as needed)
+openai>=1.12.0
+
+# Vector Search (optional, for production)
+# faiss-cpu>=1.7.4  # For CPU-only deployment
+# annoy>=1.17.3  # Alternative lightweight ANN
+
+# Production Database (optional, defaults to SQLite)
+# asyncpg>=0.29.0  # For PostgreSQL
+# aiomysql>=0.2.0  # For MySQL

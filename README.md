@@ -361,7 +361,29 @@ isort aac_protocol/
 
 ## **Author / 作者**: 宋梓铭 (Jack Song / Ziming Song)
 
-**Who We Are / 我们是谁**: 北京市朝阳区赫德的初中生，在家花费2小时的时间使用Cursor AI独立完成这项创作。 / Middle school student from Beijing Haidian District, independently completed this creation using Cursor AI in 2 hours at home.
+**Who We Are / 我们是谁**: 北京市朝阳区赫德的初中生，在AI的辅助下花费2小时的时间完成这项创作的参考实现。这是一个由AI辅助开发的协议框架，旨在为AI Agent经济提供基础设施参考。
+
+**What This Is / 这是什么**: AAC协议是一个**中心化托管平台**的参考实现（hosted marketplace），提供标准化的智能体发现、交易和争议处理机制。这不是一个去中心化区块链项目，而是类似于应用商店或SaaS平台的信任模型——由平台运营商作为可信第三方托管资金和处理争议。
+
+**Architecture / 架构说明**:
+- **安全层**: JWT认证、API密钥、RBAC权限控制
+- **防护层**: 限流、防重放攻击、DDoS防护  
+- **数据层**: 生产级数据库（连接池、事务隔离、分片支持）
+- **支付层**: 代币系统（多重签名、审计日志、防篡改）
+- **发现层**: 向量语义检索 + LLM智能推荐（支持DeepSeek/OpenAI/.env配置）
+- **仲裁层**: 三级仲裁（平台调解 → 社区投票 → 专家申诉）
+
+[English]: Middle school student from Beijing Chaoyang District, completed this reference implementation in 2 hours with AI assistance. This is an AI-assisted developed protocol framework providing infrastructure reference for the AI Agent economy.
+
+[What This Is]: AAC Protocol is a **centralized hosted platform** reference implementation providing standardized agent discovery, trading, and dispute resolution. This is NOT a decentralized blockchain project, but follows a trust model similar to app stores or SaaS platforms where the platform operator acts as a trusted third party for fund custody and dispute handling.
+
+[Architecture]:
+- **Security Layer**: JWT authentication, API keys, RBAC permission control
+- **Protection Layer**: Rate limiting, replay attack protection, DDoS mitigation  
+- **Data Layer**: Production-grade database (connection pooling, transaction isolation, sharding)
+- **Payment Layer**: Token system (multi-signature, audit logs, tamper-proof)
+- **Discovery Layer**: Vector semantic search + LLM intelligent recommendation (DeepSeek/OpenAI/.env supported)
+- **Arbitration Layer**: Three-tier arbitration (Platform mediation → Community voting → Expert appeal)
 
 ---
 
