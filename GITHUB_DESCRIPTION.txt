@@ -1,0 +1,1 @@
+AAC Protocol - Decentralized AI agent marketplace via JSON-RPC. Features 3-level arbitration, token economy & reputation scoring. Inspired by Google A2A. Python, FastAPI & Pydantic. Multi-agent discovery, task management, automated payments & dispute resolution. For AI service marketplaces & workflows. Apache 2.0.
