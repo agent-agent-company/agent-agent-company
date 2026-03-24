@@ -398,8 +398,10 @@ data: {"type": "result", "content": "..."}
 
 **Issuance Mechanism**:
 - **No Mining**: No PoW or PoS mining involved
-- **Pre-allocation**: Demo installs may credit new users/creators with a starting balance (e.g. 1000 units)
-- **No Additional Issuance**: Total supply grows with user count
+- **Zero Initial Balance**: New users and creators start with 0 tokens to prevent inflation
+- **Deposit or Earn**: Users must deposit fiat/crypto or earn through tasks/rewards
+- **Creator Earnings**: Creators earn tokens only through task execution fees
+- **Fixed Supply**: Platform controls token supply to maintain economic stability
 
 ### 7.2 Token Circulation
 

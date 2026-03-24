@@ -35,7 +35,9 @@ class EscrowLedger:
     routing real fiat/crypto is outside this reference implementation.
     """
 
-    INITIAL_DEMO_BALANCE = 1000.0
+    # Zero initial balance - users must deposit or earn tokens
+    # This prevents inflation from unlimited free distribution
+    INITIAL_BALANCE = 0.0
     DECIMAL_PLACES = 6
 
     def __init__(self, database: Database):

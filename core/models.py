@@ -323,9 +323,9 @@ class User(BaseModel):
     email: Optional[str] = None
     
     token_balance: float = Field(
-        default=1000.0,
+        default=0.0,
         ge=0,
-        description="Account balance in platform billing units (demo default 1000)",
+        description="Account balance in platform billing units. Users must deposit or earn through tasks/rewards",
     )
     
     # Stats
@@ -344,9 +344,9 @@ class Creator(BaseModel):
     email: Optional[str] = None
     
     token_balance: float = Field(
-        default=1000.0,
+        default=0.0,
         ge=0,
-        description="Creator balance in platform billing units (demo default 1000)",
+        description="Creator balance in platform billing units. Creators earn through task execution fees",
     )
     total_earned: float = Field(default=0.0)
     
