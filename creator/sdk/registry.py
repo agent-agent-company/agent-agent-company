@@ -5,7 +5,7 @@ Manages agent registration, discovery, and lifecycle.
 """
 
 import uuid
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Set
 from datetime import datetime
 
 from ...core.models import AgentCard, AgentID, Creator, AgentStatus, DiscoveryQuery
@@ -22,16 +22,69 @@ class DuplicateAgentError(RegistryError):
     pass
 
 
+class NameReservationError(RegistryError):
+    """Raised when agent name is reserved or already taken"""
+    pass
+
+
 class RegistryClient:
     """
     Client for interacting with the Agent Registry
     
     Handles agent registration, updates, discovery, and management.
+    Includes name reservation protection to prevent name squatting and
+    ensure globally unique agent identifiers.
     """
+    
+    # Reserved names that cannot be used (system keywords, offensive terms, etc.)
+    RESERVED_NAMES: Set[str] = {
+        # System keywords
+        "admin", "root", "system", "platform", "official", "support", "help",
+        "api", "rpc", "json", "http", "https", "www", "web", "app",
+        "test", "testing", "demo", "example", "sample", "template",
+        # Protocol keywords
+        "aac", "agent", "company", "protocol", "registry", "escrow", "arbitration",
+        # Common misleading terms
+        "official", "verified", "certified", "trusted", "secure", "safe",
+        # Add more as needed
+    }
     
     def __init__(self, database: Database):
         self.db = database
         self._name_counters: Dict[str, int] = {}  # In-memory for demo
+    
+    async def _is_name_available(self, name: str) -> tuple[bool, str]:
+        """
+        Check if agent name is available for registration.
+        
+        Args:
+            name: Desired agent name
+            
+        Returns:
+            Tuple of (available, reason)
+        """
+        # Normalize name (lowercase, strip whitespace)
+        normalized_name = name.lower().strip()
+        
+        # Check reserved names
+        if normalized_name in self.RESERVED_NAMES:
+            return False, f"Name '{name}' is reserved and cannot be used"
+        
+        # Check minimum length
+        if len(normalized_name) < 3:
+            return False, "Agent name must be at least 3 characters long"
+        
+        # Check valid characters (alphanumeric, hyphens, underscores)
+        if not all(c.isalnum() or c in '-_' for c in normalized_name):
+            return False, "Name can only contain letters, numbers, hyphens, and underscores"
+        
+        # Check if name is already taken (query database for any agent with this name)
+        existing_agents = await self.db.list_agents(limit=1000)
+        for agent in existing_agents:
+            if agent.id.name.lower() == normalized_name:
+                return False, f"Name '{name}' is already registered by another agent"
+        
+        return True, "OK"
     
     async def register_agent(
         self,
@@ -39,7 +92,7 @@ class RegistryClient:
         creator: Creator
     ) -> AgentCard:
         """
-        Register a new agent
+        Register a new agent with name reservation protection.
         
         Args:
             card: Agent Card with metadata
@@ -49,18 +102,34 @@ class RegistryClient:
             Registered Agent Card with assigned ID
             
         Raises:
-            DuplicateAgentError: If agent with same name exists
+            NameReservationError: If name is reserved or already taken
+            DuplicateAgentError: If agent with same ID exists
         """
-        # Generate sequence ID
-        name = card.id.name
-        if name not in self._name_counters:
-            self._name_counters[name] = 0
+        # Check name availability (prevents name squatting)
+        is_available, reason = await self._is_name_available(card.id.name)
+        if not is_available:
+            raise NameReservationError(reason)
         
-        self._name_counters[name] += 1
-        sequence_id = self._name_counters[name]
+        # Generate sequence ID based on existing agents with same name prefix
+        # This ensures uniqueness even if name check somehow missed a collision
+        name = card.id.name.lower().strip()
+        
+        # Query database to find highest existing sequence ID for this name
+        existing_agents = await self.db.list_agents(limit=1000)
+        max_seq = 0
+        for agent in existing_agents:
+            if agent.id.name.lower() == name:
+                max_seq = max(max_seq, agent.id.sequence_id)
+        
+        sequence_id = max_seq + 1
         
         # Create final Agent ID
         agent_id = AgentID(name=name, sequence_id=sequence_id)
+        
+        # Double-check ID doesn't exist
+        existing = await self.db.get_agent(agent_id.full_id)
+        if existing:
+            raise DuplicateAgentError(f"Agent with ID {agent_id.full_id} already exists")
         
         # Update card with assigned ID
         card.id = agent_id
@@ -319,20 +388,33 @@ class RegistryClient:
         self,
         agent_id: str,
         rating: float,
+        user_id: str,
         total_tasks: int
     ) -> None:
         """
-        Add rating to agent
+        Add rating to agent with anti-gaming protections.
         
         Args:
             agent_id: Agent ID
             rating: Rating score (1-5)
+            user_id: ID of user giving rating (for tracking unique raters)
             total_tasks: Total tasks completed (for updating stats)
+            
+        Raises:
+            RegistryError: If rating cannot be added (rate limiting, etc.)
         """
         agent = await self.db.get_agent(agent_id)
-        if agent:
-            agent.update_rating(rating)
-            await self.db.update_agent(agent)
+        if not agent:
+            raise RegistryError(f"Agent not found: {agent_id}")
+        
+        # Check if rating is allowed (rate limiting)
+        can_rate, reason = agent.can_receive_rating(user_id)
+        if not can_rate:
+            raise RegistryError(f"Cannot add rating: {reason}")
+        
+        # Update rating with user tracking
+        agent.update_rating(rating, user_id)
+        await self.db.update_agent(agent)
 
 
 class RegistryServer:

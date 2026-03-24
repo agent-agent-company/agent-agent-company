@@ -64,11 +64,20 @@ class TransferType(str, Enum):
 
 @dataclass
 class MultiSigConfig:
-    """Multi-signature configuration"""
+    """
+    Multi-signature configuration with authorized signers.
+    
+    Security: Only signers in the authorized list can sign transactions.
+    Each signer must have a unique signer_id registered with the platform.
+    """
     required_signatures: int = 2
     total_signers: int = 3
-    signers: List[str] = field(default_factory=list)
+    authorized_signers: List[str] = field(default_factory=list)  # List of authorized signer_ids
     threshold_amount: float = 1000.0  # Require multi-sig above this amount
+    
+    def is_authorized(self, signer_id: str) -> bool:
+        """Check if signer is authorized for multi-sig"""
+        return signer_id in self.authorized_signers
 
 
 @dataclass
@@ -229,6 +238,10 @@ class EnhancedEscrowLedger:
             "daily_volume": 100000.0,  # Max daily volume per account
         }
         self._account_velocity: Dict[str, List[datetime]] = {}
+        
+        # Concurrency control - protect critical operations
+        self._account_locks: Dict[str, asyncio.Lock] = {}  # Per-account locks
+        self._global_lock = asyncio.Lock()  # Global lock for operations involving multiple accounts
     
     def _quantize(self, amount: float) -> float:
         """Quantize amount to fixed decimal places"""
@@ -292,6 +305,33 @@ class EnhancedEscrowLedger:
         if account and account.multi_sig_config:
             return amount >= account.multi_sig_config.threshold_amount
         return amount >= 10000.0  # Default threshold
+    
+    def _get_account_lock(self, address: str) -> asyncio.Lock:
+        """Get or create a lock for an account"""
+        if address not in self._account_locks:
+            self._account_locks[address] = asyncio.Lock()
+        return self._account_locks[address]
+    
+    async def _verify_signer_authorization(
+        self, 
+        signer_id: str, 
+        from_address: str,
+        tx: EnhancedTransaction
+    ) -> bool:
+        """
+        Verify that signer is authorized to sign this transaction.
+        
+        For multi-sig transactions, signer must be in the authorized list.
+        For regular transactions, signer must be the sender.
+        """
+        account = self._account_cache.get(from_address)
+        
+        # If no multi-sig config, only sender can sign
+        if not account or not account.multi_sig_config:
+            return signer_id == from_address
+        
+        # For multi-sig, check if signer is authorized
+        return account.multi_sig_config.is_authorized(signer_id)
     
     async def _get_or_create_account(self, address: str) -> Account:
         """Get account from cache or database, create if not exists"""
@@ -491,17 +531,27 @@ class EnhancedEscrowLedger:
     async def sign_transaction(
         self, 
         tx_id: str, 
-        signer_id: str
+        signer_id: str,
+        signer_credentials: Optional[str] = None
     ) -> EnhancedTransaction:
         """
-        Add signature to multi-sig transaction
+        Add signature to multi-sig transaction with signer authorization.
+        
+        SECURITY: This method now verifies that the signer is authorized:
+        - For regular transactions: only the sender can sign
+        - For multi-sig transactions: signer must be in authorized_signers list
         
         Args:
             tx_id: Transaction ID
             signer_id: Signer identifier
+            signer_credentials: Optional credentials for signer verification (future use)
             
         Returns:
             Updated transaction
+            
+        Raises:
+            EscrowError: If transaction not found or cannot be signed
+            InvalidSignatureError: If signer is not authorized
         """
         tx = self._pending_transactions.get(tx_id)
         if not tx:
@@ -510,13 +560,28 @@ class EnhancedEscrowLedger:
         if tx.status not in [TransactionStatus.PENDING, TransactionStatus.AWAITING_SIGNATURES]:
             raise EscrowError(f"Transaction cannot be signed (status: {tx.status})")
         
+        # SECURITY: Verify signer authorization
+        is_authorized = await self._verify_signer_authorization(signer_id, tx.from_address, tx)
+        if not is_authorized:
+            raise InvalidSignatureError(
+                f"Signer '{signer_id}' is not authorized to sign transaction {tx_id}. "
+                f"For multi-sig, signer must be in authorized_signers list. "
+                f"For regular transactions, only the sender can sign."
+            )
+        
+        # Check for duplicate signatures from same signer
+        existing_signers = {sig.signer_id for sig in tx.signatures}
+        if signer_id in existing_signers:
+            raise InvalidSignatureError(f"Signer '{signer_id}' has already signed this transaction")
+        
         # Create and add signature
         signature = self._create_signature(signer_id, tx)
         tx.signatures.append(signature)
         tx.audit_log.append({
             "action": "signed",
             "signer": signer_id,
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.utcnow().isoformat(),
+            "authorized": True
         })
         
         # Check if ready to execute
@@ -532,64 +597,88 @@ class EnhancedEscrowLedger:
         return tx
     
     async def _execute_transaction(self, tx: EnhancedTransaction) -> EnhancedTransaction:
-        """Execute a transaction atomically with database persistence"""
-        try:
-            # Debit sender
-            from_account = await self._get_or_create_account(tx.from_address)
-            if not from_account:
-                raise InsufficientBalanceError(f"Sender account not found: {tx.from_address}")
-            
-            from_account.balance -= tx.amount
-            from_account.locked_balance -= tx.amount
-            from_account.total_sent += tx.amount
-            
-            # Credit recipient
-            to_account = await self._get_or_create_account(tx.to_address)
-            
-            to_account.balance += tx.amount
-            to_account.total_received += tx.amount
-            
-            # Update transaction
-            tx.status = TransactionStatus.EXECUTED
-            tx.executed_at = datetime.utcnow()
-            tx.audit_log.append({
-                "action": "executed",
-                "timestamp": tx.executed_at.isoformat()
-            })
-            
-            # Update account stats
-            from_account.transaction_count += 1
-            from_account.last_activity = datetime.utcnow()
-            to_account.last_activity = datetime.utcnow()
-            
-            # Persist to database
-            await self._persist_account_balance(tx.from_address)
-            await self._persist_account_balance(tx.to_address)
-            
-            # Record transaction in database
-            db_tx = Transaction(
-                id=tx.id,
-                from_address=tx.from_address,
-                to_address=tx.to_address,
-                amount=tx.amount,
-                type=tx.type.value,
-                task_id=tx.task_id,
-                dispute_id=tx.dispute_id,
-                timestamp=tx.executed_at,
-                signature=tx.transaction_hash,  # Use hash as signature reference
-            )
-            await self.db.record_transaction(db_tx)
-            
-            return tx
-            
-        except Exception as e:
-            tx.status = TransactionStatus.FAILED
-            tx.audit_log.append({
-                "action": "failed",
-                "error": str(e),
-                "timestamp": datetime.utcnow().isoformat()
-            })
-            raise EscrowError(f"Transaction execution failed: {e}")
+        """
+        Execute a transaction atomically with database persistence and concurrency protection.
+        
+        CONCURRENCY: Uses per-account locks to prevent race conditions during:
+        - Balance checks and updates
+        - Locked balance adjustments
+        - Statistics updates
+        """
+        from_lock = self._get_account_lock(tx.from_address)
+        to_lock = self._get_account_lock(tx.to_address)
+        
+        async with from_lock:
+            async with to_lock:
+                try:
+                    # Refresh accounts to get latest state (prevents stale data issues)
+                    from_account = await self._get_or_create_account(tx.from_address)
+                    if not from_account:
+                        raise InsufficientBalanceError(f"Sender account not found: {tx.from_address}")
+                    
+                    # Re-verify balance under lock (prevent TOCTOU race condition)
+                    available = from_account.balance - from_account.locked_balance - from_account.staked_balance
+                    if available < tx.amount:
+                        raise InsufficientBalanceError(
+                            f"Insufficient available balance under lock: {available} < {tx.amount}. "
+                            f"Balance may have changed due to concurrent operations."
+                        )
+                    
+                    # Debit sender
+                    from_account.balance -= tx.amount
+                    from_account.locked_balance -= tx.amount
+                    from_account.total_sent += tx.amount
+                    
+                    # Credit recipient
+                    to_account = await self._get_or_create_account(tx.to_address)
+                    
+                    to_account.balance += tx.amount
+                    to_account.total_received += tx.amount
+                    
+                    # Update transaction
+                    tx.status = TransactionStatus.EXECUTED
+                    tx.executed_at = datetime.utcnow()
+                    tx.audit_log.append({
+                        "action": "executed",
+                        "timestamp": tx.executed_at.isoformat(),
+                        "concurrency_protected": True
+                    })
+                    
+                    # Update account stats
+                    from_account.transaction_count += 1
+                    from_account.last_activity = datetime.utcnow()
+                    to_account.last_activity = datetime.utcnow()
+                    
+                    # Persist to database
+                    await self._persist_account_balance(tx.from_address)
+                    await self._persist_account_balance(tx.to_address)
+                    
+                    # Record transaction in database
+                    db_tx = Transaction(
+                        id=tx.id,
+                        from_address=tx.from_address,
+                        to_address=tx.to_address,
+                        amount=tx.amount,
+                        type=tx.type.value,
+                        task_id=tx.task_id,
+                        dispute_id=tx.dispute_id,
+                        timestamp=tx.executed_at,
+                        signature=tx.transaction_hash,
+                    )
+                    await self.db.record_transaction(db_tx)
+                    
+                    logger.info(f"Transaction {tx.id} executed: {tx.from_address} -> {tx.to_address}, amount: {tx.amount}")
+                    return tx
+                    
+                except Exception as e:
+                    tx.status = TransactionStatus.FAILED
+                    tx.audit_log.append({
+                        "action": "failed",
+                        "error": str(e),
+                        "timestamp": datetime.utcnow().isoformat()
+                    })
+                    logger.error(f"Transaction {tx.id} failed: {e}")
+                    raise EscrowError(f"Transaction execution failed: {e}")
     
     async def rollback_transaction(
         self, 
@@ -598,12 +687,21 @@ class EnhancedEscrowLedger:
         admin_override: bool = False
     ) -> EnhancedTransaction:
         """
-        Rollback a transaction (if allowed)
+        Rollback a transaction (if allowed) with safety checks.
+        
+        SAFETY: This method now includes critical checks:
+        1. Verifies recipient has sufficient available balance (not locked/staked)
+        2. Prevents negative balance scenarios
+        3. Acquires locks to prevent race conditions during rollback
         
         Args:
             tx_id: Transaction to rollback
             reason: Reason for rollback
             admin_override: Allow rollback even if normally disallowed
+            
+        Raises:
+            RollbackError: If rollback cannot be performed
+            InsufficientBalanceError: If recipient lacks sufficient available balance
         """
         tx = self._pending_transactions.get(tx_id)
         if not tx:
@@ -622,37 +720,68 @@ class EnhancedEscrowLedger:
             if time_since_execution > timedelta(hours=1):
                 raise RollbackError("Rollback window expired (> 1 hour)")
         
-        try:
-            # Reverse the transfer
-            from_account = await self._get_or_create_account(tx.from_address)
-            to_account = await self._get_or_create_account(tx.to_address)
-            
-            if from_account and to_account:
-                to_account.balance -= tx.amount
-                to_account.total_received -= tx.amount
-                
-                from_account.balance += tx.amount
-                from_account.total_sent -= tx.amount
-            
-            # Mark as rolled back
-            tx.status = TransactionStatus.REVERSED
-            tx.rolled_back_at = datetime.utcnow()
-            tx.rollback_reason = reason
-            tx.can_rollback = False
-            tx.audit_log.append({
-                "action": "rolled_back",
-                "reason": reason,
-                "timestamp": tx.rolled_back_at.isoformat()
-            })
-            
-            # Persist changes
-            await self._persist_account_balance(tx.from_address)
-            await self._persist_account_balance(tx.to_address)
-            
-            return tx
-            
-        except Exception as e:
-            raise RollbackError(f"Rollback failed: {e}")
+        # Acquire locks for both accounts to prevent race conditions
+        from_lock = self._get_account_lock(tx.from_address)
+        to_lock = self._get_account_lock(tx.to_address)
+        
+        async with from_lock:
+            async with to_lock:
+                try:
+                    # Refresh accounts from database to get latest state
+                    from_account = await self._get_or_create_account(tx.from_address)
+                    to_account = await self._get_or_create_account(tx.to_address)
+                    
+                    if not from_account or not to_account:
+                        raise RollbackError("Cannot rollback: one or both accounts not found")
+                    
+                    # SAFETY: Check recipient has sufficient available balance
+                    # Cannot rollback if funds are locked or already withdrawn
+                    to_available = to_account.balance - to_account.locked_balance - to_account.staked_balance
+                    if to_available < tx.amount:
+                        raise RollbackError(
+                            f"Cannot rollback: recipient '{tx.to_address}' lacks sufficient available balance. "
+                            f"Required: {tx.amount}, Available: {to_available}. "
+                            f"Funds may be locked, staked, or already withdrawn."
+                        )
+                    
+                    # SAFETY: Verify sender won't exceed maximum balance limits (sanity check)
+                    if from_account.balance + tx.amount > 1e15:  # Sanity limit
+                        logger.warning(f"Rollback would result in extremely large balance for {tx.from_address}")
+                    
+                    # Perform the rollback
+                    to_account.balance -= tx.amount
+                    to_account.total_received -= tx.amount
+                    
+                    from_account.balance += tx.amount
+                    from_account.total_sent -= tx.amount
+                    
+                    # Verify no negative balances (shouldn't happen due to above check, but safety first)
+                    if to_account.balance < 0 or from_account.balance < 0:
+                        raise RollbackError("Rollback would result in negative balance - aborting")
+                    
+                    # Mark as rolled back
+                    tx.status = TransactionStatus.REVERSED
+                    tx.rolled_back_at = datetime.utcnow()
+                    tx.rollback_reason = reason
+                    tx.can_rollback = False
+                    tx.audit_log.append({
+                        "action": "rolled_back",
+                        "reason": reason,
+                        "timestamp": tx.rolled_back_at.isoformat(),
+                        "safety_checks_passed": True
+                    })
+                    
+                    # Persist changes
+                    await self._persist_account_balance(tx.from_address)
+                    await self._persist_account_balance(tx.to_address)
+                    
+                    logger.info(f"Transaction {tx_id} rolled back: {reason}")
+                    return tx
+                    
+                except Exception as e:
+                    if isinstance(e, RollbackError):
+                        raise
+                    raise RollbackError(f"Rollback failed: {e}")
     
     async def stake_tokens(
         self,
