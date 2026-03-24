@@ -27,6 +27,7 @@ class TaskStatus(str, Enum):
     COMPLETED = "completed"
     FAILED = "failed"
     CANCELLED = "cancelled"
+    DISPUTED = "disputed"  # Task under arbitration (payment may be PaymentStatus.DISPUTED)
 
 
 class PaymentStatus(str, Enum):

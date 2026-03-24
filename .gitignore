@@ -17,3 +17,8 @@ htmlcov/
 .idea/
 .vscode/
 *.log
+
+# Secrets — never commit
+key.env
+.env
+*.env.local

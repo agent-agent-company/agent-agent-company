@@ -19,7 +19,7 @@ from decimal import Decimal
 from .models import (
     Dispute, DisputeEvidence, ArbitratorDecision, DisputeStatus,
     ArbitrationLevel, ArbitrationResult, Intent, Task,
-    ArbitrationConfig
+    ArbitrationConfig, TaskStatus, PaymentStatus,
 )
 from .database import Database
 from .token import TokenSystem
@@ -86,7 +86,7 @@ class ArbitrationSystem:
             raise InvalidDisputeError(f"Task not found: {task_id}")
         
         # Check if already disputed
-        if task.status.value == "disputed":
+        if task.status == TaskStatus.DISPUTED:
             raise InvalidDisputeError("Task already has an active dispute")
         
         # Get agent and creator
@@ -126,7 +126,7 @@ class ArbitrationSystem:
         await self.db.create_dispute(dispute)
         
         # Update task status
-        task.status = TaskStatus(DisputeStatus.DISPUTED.value)
+        task.status = TaskStatus.DISPUTED
         await self.db.update_task(task)
         
         # Lock payment
