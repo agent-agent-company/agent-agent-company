@@ -284,9 +284,10 @@ Agent Card describes an agent's capabilities, similar to A2A's Agent Card concep
 
 ### Platform ledger & escrow / 平台账本与托管
 
-- **Demo balance**: New users/creators get a default starting balance (configurable)
+- **Zero initial balance**: New users/creators start with 0 balance and must deposit or earn tokens through tasks/rewards (prevents inflation from unlimited free distribution)
 - **Single source of truth**: SQLite/Postgres under the operator; not a public blockchain
 - **Movement types**: `payment`, `refund:*`, `compensation:*`, etc.
+- **Security**: All transactions require ESCROW_SECRET environment variable for HMAC signatures
 
 ### Disputes / 争议处理
 

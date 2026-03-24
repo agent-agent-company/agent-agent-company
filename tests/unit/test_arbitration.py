@@ -3,6 +3,7 @@ Unit tests for AAC Protocol arbitration system
 """
 
 import pytest
+import pytest_asyncio
 from datetime import datetime
 
 from aac_protocol.core.models import (
@@ -15,7 +16,7 @@ from aac_protocol.core.escrow import EscrowLedger
 from aac_protocol.core.arbitration import ArbitrationSystem, ArbitrationConfig, InvalidDisputeError
 
 
-@pytest.fixture
+@pytest_asyncio.fixture
 async def database():
     """Create test database"""
     db = Database("sqlite+aiosqlite:///:memory:")
@@ -23,7 +24,7 @@ async def database():
     yield db
 
 
-@pytest.fixture
+@pytest_asyncio.fixture
 async def arbitration_system(database):
     """Create arbitration system"""
     ledger = EscrowLedger(database)
@@ -34,53 +35,87 @@ async def arbitration_system(database):
     return ArbitrationSystem(database, ledger, config)
 
 
+@pytest_asyncio.fixture
+async def test_user(database):
+    """Create a test user with initial balance"""
+    user = User(id="test-user-001", name="Test User", token_balance=1000.0)
+    await database.create_user(user)
+    return user
+
+
+@pytest_asyncio.fixture
+async def test_creator(database):
+    """Create a test creator with initial balance"""
+    creator = Creator(id="test-creator-001", name="Test Creator", token_balance=1000.0)
+    await database.create_creator(creator)
+    return creator
+
+
+@pytest_asyncio.fixture
+async def test_agent(database, test_creator):
+    """Create a test agent"""
+    agent_id = AgentID(name="test-agent", sequence_id=1)
+    agent = AgentCard(
+        id=agent_id,
+        name="Test Agent",
+        description="A test agent for unit testing with detailed description",
+        creator_id=test_creator.id,
+        price_per_task=10.0,
+        endpoint_url="http://localhost:8001",
+    )
+    await database.create_agent(agent)
+    return agent
+
+
+@pytest_asyncio.fixture
+async def test_task(database, test_user, test_agent):
+    """Create a test task"""
+    task = Task(
+        id="test-task-001",
+        user_id=test_user.id,
+        agent_id=test_agent.id.full_id,
+        input=TaskInput(content="Test task input"),
+        price_locked=10.0,
+    )
+    await database.create_task(task)
+    return task
+
+
+@pytest_asyncio.fixture
+async def dispute_setup(database, arbitration_system, test_user, test_creator, test_agent, test_task):
+    """Complete setup for dispute-related tests"""
+    return {
+        "database": database,
+        "arbitration_system": arbitration_system,
+        "user": test_user,
+        "creator": test_creator,
+        "agent": test_agent,
+        "task": test_task,
+    }
+
+
 class TestArbitrationSystem:
     """Tests for ArbitrationSystem"""
-    
+
     @pytest.mark.asyncio
-    async def test_file_dispute(self, database, arbitration_system):
+    async def test_file_dispute(self, arbitration_system, dispute_setup):
         """Test filing a dispute"""
-        # Setup
-        user = User(id="user-001", name="Test User", token_balance=1000.0)
-        creator = Creator(id="creator-001", name="Test Creator", token_balance=1000.0)
-        agent_id = AgentID(name="test", sequence_id=1)
-        agent = AgentCard(
-            id=agent_id,
-            name="Test Agent",
-            description="Test description long enough",
-            creator_id="creator-001",
-            price_per_task=10.0,
-            endpoint_url="http://localhost:8001",
-        )
-        task = Task(
-            id="task-001",
-            user_id="user-001",
-            agent_id=agent_id.full_id,
-            input=TaskInput(content="Test"),
-            price_locked=10.0,
-        )
-        
-        await database.create_user(user)
-        await database.create_creator(creator)
-        await database.create_agent(agent)
-        await database.create_task(task)
-        
-        # File dispute
+        # File dispute using the pre-configured setup
         dispute = await arbitration_system.file_dispute(
-            task_id="task-001",
-            user_id="user-001",
+            task_id=dispute_setup["task"].id,
+            user_id=dispute_setup["user"].id,
             user_claim="Agent did not complete task",
             claimed_amount=20.0,
         )
-        
+
         assert dispute.id.startswith("dispute-")
-        assert dispute.task_id == "task-001"
-        assert dispute.user_id == "user-001"
-        assert dispute.creator_id == "creator-001"
+        assert dispute.task_id == dispute_setup["task"].id
+        assert dispute.user_id == dispute_setup["user"].id
+        assert dispute.creator_id == dispute_setup["creator"].id
         assert dispute.status == DisputeStatus.OPEN
     
     @pytest.mark.asyncio
-    async def test_file_dispute_task_not_found(self, database, arbitration_system):
+    async def test_file_dispute_task_not_found(self, arbitration_system):
         """Test filing dispute for non-existent task"""
         with pytest.raises(InvalidDisputeError) as exc_info:
             await arbitration_system.file_dispute(
@@ -89,132 +124,84 @@ class TestArbitrationSystem:
                 user_claim="Claim",
                 claimed_amount=10.0,
             )
-        
+
         assert "not found" in str(exc_info.value)
-    
+
     @pytest.mark.asyncio
     async def test_file_dispute_excessive_claim(self, database, arbitration_system):
-        """Test filing dispute with excessive claim amount"""
-        # Setup
-        user = User(id="user-002", name="Test User")
-        creator = Creator(id="creator-002", name="Test Creator")
-        agent_id = AgentID(name="test", sequence_id=1)
+        """Test filing dispute with excessive claim amount (exceeds 15x max)"""
+        # Create unique entities for this test to avoid conflicts
+        user = User(id="user-excess", name="Test User")
+        creator = Creator(id="creator-excess", name="Test Creator")
+        agent_id = AgentID(name="test-excess", sequence_id=1)
         agent = AgentCard(
             id=agent_id,
             name="Test Agent",
-            description="Test description long enough",
-            creator_id="creator-002",
+            description="Test description long enough for validation",
+            creator_id="creator-excess",
             price_per_task=10.0,
             endpoint_url="http://localhost:8001",
         )
         task = Task(
-            id="task-002",
-            user_id="user-002",
+            id="task-excess",
+            user_id="user-excess",
             agent_id=agent_id.full_id,
-            input=TaskInput(content="Test"),
+            input=TaskInput(content="Test content"),
             price_locked=10.0,
         )
-        
+
         await database.create_user(user)
         await database.create_creator(creator)
         await database.create_agent(agent)
         await database.create_task(task)
-        
-        # Try to claim more than max (15x)
+
+        # Try to claim more than max (15x) - 200 is 20x, exceeds limit
         with pytest.raises(InvalidDisputeError) as exc_info:
             await arbitration_system.file_dispute(
-                task_id="task-002",
-                user_id="user-002",
+                task_id="task-excess",
+                user_id="user-excess",
                 user_claim="Claim",
-                claimed_amount=200.0,  # 20x, exceeds 15x max
+                claimed_amount=200.0,
             )
-        
+
         assert "exceeds maximum" in str(exc_info.value)
-    
+
     @pytest.mark.asyncio
-    async def test_submit_evidence(self, database, arbitration_system):
+    async def test_submit_evidence(self, arbitration_system, dispute_setup):
         """Test submitting evidence"""
-        # Setup
-        user = User(id="user-003", name="Test User")
-        creator = Creator(id="creator-003", name="Test Creator")
-        agent_id = AgentID(name="test", sequence_id=1)
-        agent = AgentCard(
-            id=agent_id,
-            name="Test Agent",
-            description="Test description long enough",
-            creator_id="creator-003",
-            price_per_task=10.0,
-            endpoint_url="http://localhost:8001",
-        )
-        task = Task(
-            id="task-003",
-            user_id="user-003",
-            agent_id=agent_id.full_id,
-            input=TaskInput(content="Test"),
-            price_locked=10.0,
-        )
-        
-        await database.create_user(user)
-        await database.create_creator(creator)
-        await database.create_agent(agent)
-        await database.create_task(task)
-        
+        # File dispute using shared fixture
         dispute = await arbitration_system.file_dispute(
-            task_id="task-003",
-            user_id="user-003",
+            task_id=dispute_setup["task"].id,
+            user_id=dispute_setup["user"].id,
             user_claim="Claim",
             claimed_amount=20.0,
         )
-        
+
         # Submit evidence
         updated = await arbitration_system.submit_evidence(
             dispute_id=dispute.id,
-            submitter_id="user-003",
+            submitter_id=dispute_setup["user"].id,
             content="Screenshot of error",
             attachments=[{"type": "image", "url": "http://example.com/error.png"}],
         )
-        
+
         assert len(updated.user_evidence) == 1
         assert updated.user_evidence[0].content == "Screenshot of error"
-    
+
     @pytest.mark.asyncio
-    async def test_submit_arbitration_decision(self, database, arbitration_system):
+    async def test_submit_arbitration_decision(self, arbitration_system, dispute_setup):
         """Test submitting arbitrator decision"""
-        # Setup
-        user = User(id="user-004", name="Test User")
-        creator = Creator(id="creator-004", name="Test Creator")
-        agent_id = AgentID(name="test", sequence_id=1)
-        agent = AgentCard(
-            id=agent_id,
-            name="Test Agent",
-            description="Test description long enough",
-            creator_id="creator-004",
-            price_per_task=10.0,
-            endpoint_url="http://localhost:8001",
-        )
-        task = Task(
-            id="task-004",
-            user_id="user-004",
-            agent_id=agent_id.full_id,
-            input=TaskInput(content="Test"),
-            price_locked=10.0,
-        )
-        
-        await database.create_user(user)
-        await database.create_creator(creator)
-        await database.create_agent(agent)
-        await database.create_task(task)
-        
+        # File dispute
         dispute = await arbitration_system.file_dispute(
-            task_id="task-004",
-            user_id="user-004",
+            task_id=dispute_setup["task"].id,
+            user_id=dispute_setup["user"].id,
             user_claim="Claim",
             claimed_amount=20.0,
         )
-        
+
         # Assign arbitrator
         await arbitration_system.assign_arbitrators(dispute.id)
-        
+
         # Submit decision
         updated = await arbitration_system.submit_arbitration_decision(
             dispute_id=dispute.id,
@@ -224,49 +211,24 @@ class TestArbitrationSystem:
             compensation_amount=15.0,
             reasoning="Evidence supports user claim",
         )
-        
+
         assert updated.platform_decision is not None
         assert updated.platform_decision.decision == ArbitrationResult.IN_FAVOR_OF_USER
         assert updated.platform_decision.compensation_amount == 15.0
-    
+
     @pytest.mark.asyncio
-    async def test_resolve_dispute(self, database, arbitration_system):
+    async def test_resolve_dispute(self, arbitration_system, dispute_setup):
         """Test resolving a dispute"""
-        # Setup
-        user = User(id="user-005", name="Test User", token_balance=500.0)
-        creator = Creator(id="creator-005", name="Test Creator", token_balance=1000.0)
-        agent_id = AgentID(name="test", sequence_id=1)
-        agent = AgentCard(
-            id=agent_id,
-            name="Test Agent",
-            description="Test description long enough",
-            creator_id="creator-005",
-            price_per_task=10.0,
-            endpoint_url="http://localhost:8001",
-        )
-        task = Task(
-            id="task-005",
-            user_id="user-005",
-            agent_id=agent_id.full_id,
-            input=TaskInput(content="Test"),
-            price_locked=10.0,
-        )
-        
-        await database.create_user(user)
-        await database.create_creator(creator)
-        await database.create_agent(agent)
-        await database.create_task(task)
-        
         # Create and resolve dispute
         dispute = await arbitration_system.file_dispute(
-            task_id="task-005",
-            user_id="user-005",
+            task_id=dispute_setup["task"].id,
+            user_id=dispute_setup["user"].id,
             user_claim="Claim",
             claimed_amount=15.0,
         )
-        
+
         await arbitration_system.assign_arbitrators(dispute.id)
-        
+
         await arbitration_system.submit_arbitration_decision(
             dispute_id=dispute.id,
             arbitrator_id="arb-001",
@@ -275,51 +237,27 @@ class TestArbitrationSystem:
             compensation_amount=15.0,
             reasoning="User is right",
         )
-        
+
         resolved = await arbitration_system.resolve_dispute(dispute.id)
-        
+
         assert resolved.status == DisputeStatus.RESOLVED
         assert resolved.final_decision == ArbitrationResult.IN_FAVOR_OF_USER
         assert resolved.final_compensation == 15.0
-    
+
     @pytest.mark.asyncio
-    async def test_escalate_dispute(self, database, arbitration_system):
-        """Test escalating a dispute"""
-        # Setup
-        user = User(id="user-006", name="Test User")
-        creator = Creator(id="creator-006", name="Test Creator")
-        agent_id = AgentID(name="test", sequence_id=1)
-        agent = AgentCard(
-            id=agent_id,
-            name="Test Agent",
-            description="Test description long enough",
-            creator_id="creator-006",
-            price_per_task=10.0,
-            endpoint_url="http://localhost:8001",
-        )
-        task = Task(
-            id="task-006",
-            user_id="user-006",
-            agent_id=agent_id.full_id,
-            input=TaskInput(content="Test"),
-            price_locked=10.0,
-        )
-        
-        await database.create_user(user)
-        await database.create_creator(creator)
-        await database.create_agent(agent)
-        await database.create_task(task)
-        
+    async def test_escalate_dispute(self, arbitration_system, dispute_setup):
+        """Test escalating a dispute to community vote"""
+        # Create dispute
         dispute = await arbitration_system.file_dispute(
-            task_id="task-006",
-            user_id="user-006",
+            task_id=dispute_setup["task"].id,
+            user_id=dispute_setup["user"].id,
             user_claim="Claim",
             claimed_amount=20.0,
         )
-        
+
         await arbitration_system.assign_arbitrators(dispute.id)
-        
-        # Submit level 1 decision
+
+        # Submit initial decision
         await arbitration_system.submit_arbitration_decision(
             dispute_id=dispute.id,
             arbitrator_id="arb-001",
@@ -328,10 +266,12 @@ class TestArbitrationSystem:
             compensation_amount=0.0,
             reasoning="Evidence insufficient",
         )
-        
-        # Escalate
-        escalated = await arbitration_system.escalate_dispute(dispute.id, "user-006")
-        
+
+        # Escalate to community vote
+        escalated = await arbitration_system.escalate_dispute(
+            dispute.id, dispute_setup["user"].id
+        )
+
         assert escalated.status == DisputeStatus.COMMUNITY_VOTE
 
 

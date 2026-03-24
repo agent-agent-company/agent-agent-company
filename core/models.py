@@ -317,15 +317,21 @@ class ArbitrationConfig(BaseModel):
 
 
 class User(BaseModel):
-    """User account model"""
+    """
+    User account model.
+
+    Users start with zero balance and must deposit funds or earn tokens
+    through platform tasks and rewards. This prevents inflation from
+    unlimited free token distribution.
+    """
     id: str
     name: Optional[str] = None
     email: Optional[str] = None
-    
+
     token_balance: float = Field(
         default=0.0,
         ge=0,
-        description="Account balance in platform billing units. Users must deposit or earn through tasks/rewards",
+        description="Account balance in platform billing units. Users must deposit or earn through tasks/rewards. Default is 0.0 (no free tokens).",
     )
     
     # Stats
@@ -338,15 +344,20 @@ class User(BaseModel):
 
 
 class Creator(BaseModel):
-    """Creator account model"""
+    """
+    Creator account model.
+
+    Creators start with zero balance and earn tokens through task execution.
+    No upfront deposit required - creators earn as they provide services.
+    """
     id: str
     name: str
     email: Optional[str] = None
-    
+
     token_balance: float = Field(
         default=0.0,
         ge=0,
-        description="Creator balance in platform billing units. Creators earn through task execution fees",
+        description="Creator balance in platform billing units. Creators earn through task execution fees. Default is 0.0.",
     )
     total_earned: float = Field(default=0.0)
     
