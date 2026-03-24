@@ -7,7 +7,7 @@ from datetime import datetime
 
 from aac_protocol.core.models import User, Creator, Transaction
 from aac_protocol.core.database import Database
-from aac_protocol.core.token import TokenSystem, InsufficientBalanceError, TokenLedger
+from aac_protocol.core.escrow import EscrowLedger, TokenSystem, InsufficientBalanceError
 
 
 @pytest.fixture
@@ -155,9 +155,11 @@ class TestTokenSystem:
             amount=10.0,
         )
         
-        # Balance should be unchanged (refund returns locked tokens)
+        # Refund leg: creator sends amount back to user (demo ledger semantics)
         user_balance = await tokens.get_balance("user-006")
-        assert user_balance == 1000.0
+        creator_balance = await tokens.get_balance("creator-006")
+        assert user_balance == 1010.0
+        assert creator_balance == 990.0
     
     @pytest.mark.asyncio
     async def test_compensation(self, database):

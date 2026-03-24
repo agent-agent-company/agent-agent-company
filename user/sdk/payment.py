@@ -1,7 +1,7 @@
 """
 AAC Protocol User SDK - Payment Client
 
-Client for managing token payments and transactions.
+Client for balances, escrow, and ledger history.
 """
 
 from typing import List, Optional, Dict, Any
@@ -10,7 +10,7 @@ import httpx
 
 from ...core.models import Transaction, User, Creator, PaymentStatus
 from ...core.database import Database
-from ...core.token import TokenSystem
+from ...core.escrow import EscrowLedger
 
 
 class PaymentError(Exception):
@@ -20,32 +20,24 @@ class PaymentError(Exception):
 
 class PaymentClient:
     """
-    Client for managing payments and token operations
-    
-    Provides user-facing payment functionality.
+    User-facing payments and balance helpers (platform ledger).
     """
     
     def __init__(
         self,
         database: Database,
-        token_system: TokenSystem,
+        ledger: EscrowLedger,
         server_url: str = "http://localhost:8000"
     ):
         self.db = database
-        self.tokens = token_system
+        self.ledger = ledger
         self._client = httpx.AsyncClient(base_url=server_url, timeout=30.0)
     
     async def get_balance(self, address: str) -> float:
         """
-        Get token balance
-        
-        Args:
-            address: User or Creator ID
-            
-        Returns:
-            Token balance
+        Get account balance (platform billing units).
         """
-        return await self.tokens.get_balance(address)
+        return await self.ledger.get_balance(address)
     
     async def get_available_balance(self, user_id: str) -> float:
         """
@@ -57,7 +49,7 @@ class PaymentClient:
         Returns:
             Available balance
         """
-        return await self.tokens.get_available_balance(user_id)
+        return await self.ledger.get_available_balance(user_id)
     
     async def get_transaction_history(
         self,
@@ -76,7 +68,7 @@ class PaymentClient:
         Returns:
             List of transactions
         """
-        return await self.tokens.get_transaction_history(
+        return await self.ledger.get_transaction_history(
             address, limit, transaction_type
         )
     
@@ -163,18 +155,9 @@ class PaymentClient:
         memo: Optional[str] = None
     ) -> Transaction:
         """
-        Transfer tokens between accounts
-        
-        Args:
-            from_address: Sender
-            to_address: Recipient
-            amount: Amount
-            memo: Optional memo
-            
-        Returns:
-            Transaction record
+        Transfer between platform accounts (admin / settlement use cases).
         """
-        return await self.tokens.transfer(
+        return await self.ledger.transfer(
             from_address=from_address,
             to_address=to_address,
             amount=amount,

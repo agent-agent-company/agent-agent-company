@@ -10,13 +10,13 @@
 
 ## Overview
 
-**AAC (Agent-Agent Company) Protocol** is an open, decentralized protocol for AI agent service marketplace. Inspired by Google's A2A (Agent-to-Agent) protocol, AAC connects service providers (Creators) with service consumers (Users) in a standardized, trustable ecosystem.
+**AAC (Agent-Agent Company) Protocol** is an open **reference stack** for a **centralized AI agent marketplace** (hosted platform): standardized Agent Cards, JSON-RPC, discovery, ratings, escrow-style payments, and staff-led dispute handling. It is inspired by Google's A2A (Agent-to-Agent) ideas but assumes a **trusted operator** (like typical SaaS / app stores), not an on-chain or P2P network.
 
 ### Key Features
 
 - **🤖 Agent-Centric**: First-class support for AI agents with capability-based discovery
-- **💰 Token Economy**: Simplified token system for value exchange without blockchain complexity
-- **⚖️ Three-Level Arbitration**: Fair dispute resolution with 1/3/5 arbitrators system
+- **💰 Platform ledger & escrow**: Balances, holds, release/refund/compensation in a single database ledger (map to fiat/PSP or crypto settlement externally)
+- **⚖️ Platform disputes**: Staff mediation by default; optional community advisory round (no VRF, no multi-level on-chain arbitration)
 - **🔍 Trust System**: Reputation scoring based on historical performance
 - **🌐 Standardized**: JSON-RPC 2.0 over HTTP for maximum interoperability
 - **📊 Selection Modes**: Performance mode, Price mode, or Balanced mode
@@ -52,15 +52,15 @@
 
 ## 概述
 
-**AAC (Agent-Agent Company) 协议** 是一个开源的、去中心化的智能体服务市场协议。借鉴Google A2A (Agent-to-Agent) 协议的设计理念，AAC协议将服务提供方（创作者）与服务需求方（用户）连接在一个标准化、可信的生态系统中。
+**AAC (Agent-Agent Company) 协议** 是一套面向 **中心化托管平台** 的智能体服务市场 **参考实现**：统一 Agent Card、JSON-RPC、能力发现、评分、平台托管资金与 **客服/平台介入式** 争议处理。信任边界与常见 SaaS / 应用商店一致，**不包含**链上共识、Merkle 自证、VRF 抽选仲裁等去中心化组件。
 
 ### 核心特性
 
 - **🤖 以智能体为中心**: 基于能力发现的一流智能体支持
-- **💰 代币经济**: 简化的代币系统，无区块链复杂性
-- **⚖️ 三级仲裁**: 1/3/5仲裁员的公平争议解决机制
+- **💰 平台账本与托管**: 余额、冻结、放款/退款/赔付由平台数据库账本记录（对外可对接法币支付或主流币结算）
+- **⚖️ 平台争议处理**: 默认平台调解；可选社区评议轮次（非链上多级仲裁）
 - **🔍 信任体系**: 基于历史表现的信誉评分系统
-- **🌐 标准化**: 基于HTTP的JSON-RPC 2.0，最大互操作性
+- **🌐 标准化**: 基于 HTTP 的 JSON-RPC 2.0，最大互操作性
 - **📊 选择模式**: 性能模式、价格模式或平衡模式
 
 ---
@@ -142,7 +142,7 @@ async def main():
     
     # Process task (simplified)
     print(f"Using agent: {agent.name}")
-    print(f"Price: {agent.price_per_task} AAC")
+    print(f"Price: {agent.price_per_task} (platform units)")
     
     await discovery.close()
 
@@ -180,9 +180,9 @@ aac-protocol/
 ├── core/                      # Core shared modules
 │   ├── models.py             # Pydantic data models
 │   ├── database.py           # Database interface
-│   ├── token.py              # Token system
+│   ├── escrow.py             # Platform ledger & task escrow
 │   ├── rpc.py                # JSON-RPC framework
-│   └── arbitration.py        # Arbitration system
+│   └── arbitration.py        # Platform dispute mediation
 ├── creator/                   # Creator SDK and tools
 │   ├── sdk/                  # Creator SDK
 │   │   ├── agent.py         # Agent base class
@@ -234,31 +234,40 @@ Agent Card describes an agent's capabilities, similar to A2A's Agent Card concep
 }
 ```
 
-### Token System / 代币系统
+### Platform ledger & escrow / 平台账本与托管
 
-- **Initial Allocation**: 1000 AAC for new users/creators
-- **Simplified Ledger**: No blockchain, no mining
-- **Transfer Types**: Payment, Refund, Compensation
+- **Demo balance**: New users/creators get a default starting balance (configurable)
+- **Single source of truth**: SQLite/Postgres under the operator; not a public blockchain
+- **Movement types**: `payment`, `refund:*`, `compensation:*`, etc.
 
-### Three-Level Arbitration / 三级仲裁
+### Disputes / 争议处理
 
-| Level / 级别 | Arbitrators / 仲裁员 | Trust Score / 信任分 | Time Limit / 时限 |
-|-------------|---------------------|---------------------|------------------|
-| First / 一审 | 1 | ≥70 | 72h |
-| Second / 二审 | 3 | ≥80 | 120h |
-| Third / 终审 | 5 | ≥90 | 168h |
+- **Primary path**: Platform staff assigns a case, submits one binding mediation outcome, then `resolve` applies caps and payouts.
+- **Optional**: `COMMUNITY_VOTE` collects multiple advisory opinions and aggregates by majority (configurable `community_votes_required`).
+- **Compensation policy caps** (same multipliers as before, now policy knobs):
+  - Non-intentional: up to **5×** original task payment
+  - Intentional: up to **15×** original task payment
 
-**Compensation Limits / 赔偿上限**:
-- Non-intentional damage / 非故意损害: 5x original payment
-- Intentional damage / 故意损害: 15x original payment
+---
+
+## Git / network troubleshooting / Git 与网络排错
+
+若出现 `Failed to connect to github.com port 443`：
+
+1. 在 PowerShell 检查连通性：`Test-NetConnection github.com -Port 443`
+2. 若在公司网络，配置 Git 代理：`git config --global http.proxy …`、`https.proxy …`
+3. 尝试 `git config --global http.sslBackend schannel`（Windows）
+4. 或改用 SSH，必要时使用 [SSH over port 443](https://docs.github.com/en/authentication/troubleshooting-ssh/using-ssh-over-the-https-port)
+
+Cursor/沙箱环境若无法访问外网，请在 **本机可访问 GitHub 的终端** 中执行 `git push`。
 
 ---
 
 ## Testing / 测试
 
 ```bash
-# Install test dependencies
-pip install pytest pytest-asyncio httpx
+# Python 3.10+ recommended (see setup.py)
+pip install -e ".[dev]"
 
 # Run all tests
 pytest

@@ -385,7 +385,7 @@ aac-user cancel-task task-003
 ```python
 from aac_protocol.core.models import User, TaskInput
 from aac_protocol.core.database import Database
-from aac_protocol.core.token import TokenSystem
+from aac_protocol.core.escrow import EscrowLedger
 from aac_protocol.user.sdk.client import DiscoveryClient
 from aac_protocol.user.sdk.task import TaskManager, TaskBuilder
 
@@ -394,9 +394,9 @@ async def submit_weather_task():
     db = Database("sqlite+aiosqlite:///aac.db")
     await db.create_tables()
     
-    tokens = TokenSystem(db)
+    ledger = EscrowLedger(db)
     discovery = DiscoveryClient("http://localhost:8000")
-    task_mgr = TaskManager(db, tokens, discovery)
+    task_mgr = TaskManager(db, ledger, discovery)
     
     # 创建/加载用户
     user = User(id="my-user-id", name="My Name")

@@ -7,7 +7,7 @@
 **Author**: Ziming Song (Jack Song)  
 **Author Info**: A middle school student from HD School in Chaoyang District, Beijing, independently completed this creation in 2 hours using Cursor AI at home.
 
-**Protocol Description**: A decentralized Agent service marketplace protocol built by referencing the Google A2A protocol implementation.
+**Protocol Description**: A **centralized, operator-hosted** agent marketplace reference stack inspired by Google A2A: Agent Cards, JSON-RPC, discovery, ratings, escrow ledger, and platform-led disputes.
 
 ---
 
@@ -30,13 +30,13 @@
 
 ### 1.1 What is AAC Protocol
 
-AAC (Agent-Agent Company) Protocol is an open, decentralized AI agent service marketplace protocol. Drawing inspiration from the advanced design concepts of Google's A2A (Agent-to-Agent) protocol, AAC builds a standardized platform connecting service demanders (users) with service providers (creators/agents).
+AAC (Agent-Agent Company) Protocol is a reference implementation for a **hosted marketplace** run by a platform operator. It borrows ideas from Google's A2A (Agent-to-Agent) protocol to standardize how users and creators connect.
 
-In the AAC protocol:
-- **Creators** can register and publish their own AI agent services
-- **Users** can discover and use these agent services to complete tasks
-- **Token system** enables automated value exchange
-- **Arbitration mechanism** ensures transaction security and fairness
+In AAC:
+- **Creators** register and publish agent services
+- **Users** discover agents and submit tasks
+- **Platform ledger & escrow** record balances, holds, settlement, refunds, and payouts (integrate fiat/PSP or crypto externally)
+- **Dispute handling** is **platform-operated**, with an optional community advisory round
 
 ### 1.2 Protocol Objectives
 
@@ -60,21 +60,21 @@ AAC Protocol is suitable for the following scenarios:
 
 ## 2. Design Philosophy and Core Principles
 
-### 2.1 Decentralized Autonomy
+### 2.1 Platform-Operated Marketplace
 
-AAC Protocol adopts a decentralized design with no single control node. All participants operate autonomously within the framework of protocol rules:
+AAC assumes a **trusted operator** (database, APIs, payments, moderation). Agents and users interact through **published rules**, not through a permissionless chain.
 
-- **Agent Autonomy**: Each agent operates independently and makes autonomous decisions
-- **User Autonomy**: Users autonomously select services and provide evaluations
-- **Economic Autonomy**: Token system enables peer-to-peer value exchange
+- **Agent autonomy**: Each agent endpoint runs its own logic; the platform indexes metadata and enforces policy.
+- **User choice**: Users pick agents using discovery, price, and reputation signals.
+- **Economic layer**: Balances and escrow are **ledgered by the operator**; external settlement is pluggable.
 
-### 2.2 Minimized Trust
+### 2.2 Clear Trust Boundaries
 
-The protocol minimizes the need for trust in third parties through technical means:
+Instead of trust-minimization via consensus, AAC relies on:
 
-- **On-chain Records**: All transactions and rating records are immutable
-- **Public Transparency**: All rules and decision-making processes are publicly verifiable
-- **Game Theory Balance**: Mechanism design incentivizes honest behavior
+- **Auditable records**: Tasks, payments, disputes, and ledger rows are stored for support and compliance (with access control).
+- **Published rules**: Pricing, refunds, and dispute policies are documented and applied consistently.
+- **Incentives**: Ratings, escrow, and penalties discourage abuse on the platform.
 
 ### 2.3 Progressive Improvement
 
@@ -163,7 +163,7 @@ Agent is the core entity in AAC Protocol, representing an AI system capable of p
 - **ID**: Unique identifier in format `{name}-{sequence}`, e.g., `weather-001`
 - **Name**: Agent name
 - **Description**: Service capability description
-- **Price**: Price per task (AAC tokens)
+- **Price**: Price per task (platform billing units)
 - **Capabilities**: List of capability tags
 - **Endpoint**: JSON-RPC service endpoint URL
 - **Trust Score**: Public trust score (0-100)
@@ -291,17 +291,20 @@ class Payment:
 
 ```python
 class Dispute:
-    id: str                       # Dispute ID
-    task_id: str                  # Associated task ID
-    user_id: str                  # Filing user
-    agent_id: str                 # Accused agent
-    creator_id: str               # Accused creator
-    user_claim: str               # Claim content
-    claimed_amount: float         # Claim amount
-    status: DisputeStatus         # Dispute status
-    current_level: ArbitrationLevel # Current arbitration level
-    final_decision: Optional[ArbitrationResult] # Final decision
-    final_compensation: float     # Final compensation amount
+    id: str
+    task_id: str
+    user_id: str
+    agent_id: str
+    creator_id: str
+    user_claim: str
+    claimed_amount: float
+    status: DisputeStatus              # open | under_review | community_vote | resolved | closed
+    platform_mediator_id: Optional[str]
+    platform_decision: Optional[ArbitratorDecision]
+    community_decisions: List[ArbitratorDecision]
+    final_decision: Optional[ArbitrationResult]
+    final_intent: Optional[Intent]
+    final_compensation: float
 ```
 
 ---
@@ -395,7 +398,7 @@ data: {"type": "result", "content": "..."}
 
 **Issuance Mechanism**:
 - **No Mining**: No PoW or PoS mining involved
-- **Pre-allocation**: Each newly registered user and creator automatically receives 1000 AAC tokens
+- **Pre-allocation**: Demo installs may credit new users/creators with a starting balance (e.g. 1000 units)
 - **No Additional Issuance**: Total supply grows with user count
 
 ### 7.2 Token Circulation
@@ -418,38 +421,21 @@ The protocol controls token value through:
 
 ---
 
-## 8. Dispute Arbitration Mechanism
+## 8. Dispute Handling (Centralized)
 
-### 8.1 Arbitration Principles
+### 8.1 Principles
 
-AAC Protocol adopts a **three-level arbitration** mechanism to ensure fairness:
+1. **Operator responsibility**: Intake, evidence, mediation, and payout execution sit with the platform.  
+2. **Traceability**: Tasks, payments, disputes, and ledger entries are queryable under access control.  
+3. **Optional community round**: In `COMMUNITY_VOTE`, collect `community_decisions` and aggregate by majority once `community_votes_required` is met.  
+4. **Compensation caps**: Non-intentional / intentional multipliers remain policy limits (see 8.3).
 
-1. **Convenience**: Users can conveniently submit disputes
-2. **Professionalism**: Arbitrators are high-trust agents
-3. **Progressive Review**: Dissatisfied parties can appeal to higher levels
-4. **Speed**: Each level has processing time limits
+### 8.2 State machine (summary)
 
-### 8.2 Three-Level Arbitration
-
-#### 8.2.1 First Instance
-
-- **Arbitrators**: 1 high-trust agent (trust score ≥70)
-- **Time Limit**: 72 hours
-- **Result**: Acceptable or appealable
-
-#### 8.2.2 Second Instance
-
-- **Arbitrators**: 3 high-trust agents (trust score ≥80)
-- **Trigger**: Either party dissatisfied with first instance judgment appeals
-- **Time Limit**: 120 hours
-- **Result**: Majority decision, acceptable or continue appealing
-
-#### 8.2.3 Final Instance
-
-- **Arbitrators**: 5 high-trust agents (trust score ≥90)
-- **Trigger**: Either party dissatisfied with second instance judgment appeals
-- **Time Limit**: 168 hours
-- **Result**: Final judgment, no further appeals allowed
+- **OPEN**: User files dispute; task/payment marked disputed.  
+- **UNDER_REVIEW**: Staff works the case; `platform_decision` is recorded.  
+- **COMMUNITY_VOTE** (optional): Multiple advisory votes are collected.  
+- **RESOLVED**: Ledger actions run; agents/creators may be penalized for intentional harm.
 
 ### 8.3 Compensation Rules
 
@@ -469,20 +455,12 @@ If creator/agent is determined to have **intentionally** harmed the user:
 - **Penalty**: Economic compensation + agent deletion + significant creator trust score reduction
 - **Agent Status**: Permanently deleted
 
-### 8.4 Arbitration Process
+### 8.4 Process (default path)
 
 ```
-File Dispute ──▶ Evidence Collection ──▶ Level 1 (1 arb) ──▶ Satisfied? ──Yes──▶ Resolved
-                                                       │
-                                                       │ No
-                                                       ▼
-                                              Appeal ──▶ Level 2 (3 arb)
-                                                       │
-                                                       ▼ Satisfied?
-                                                       │ Yes ──▶ Resolved
-                                                       │ No
-                                                       ▼
-                                              Appeal ──▶ Level 3 (5 arb) ──▶ Resolved
+File dispute → Evidence → UNDER_REVIEW → Platform decision → resolve → ledger payout
+                              │
+                              └── optional: COMMUNITY_VOTE → aggregate votes → resolve
 ```
 
 ### 8.5 Evidence Rules

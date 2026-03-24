@@ -126,7 +126,7 @@ async def main():
     # Print agent info
     print(f"\nAgent: {agent.card.name}")
     print(f"ID: {agent.card.id.full_id}")
-    print(f"Price: {agent.card.price_per_task} AAC tokens")
+    print(f"Price: {agent.card.price_per_task} (platform units)")
     print(f"Capabilities: {', '.join(agent.card.capabilities)}")
     print(f"Endpoint: {agent.card.endpoint_url}")
     

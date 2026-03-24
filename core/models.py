@@ -31,29 +31,21 @@ class TaskStatus(str, Enum):
 
 
 class PaymentStatus(str, Enum):
-    """Payment transaction status"""
+    """Payment / escrow status"""
     PENDING = "pending"
-    LOCKED = "locked"  # Tokens locked during task execution
-    RELEASED = "released"  # Released to agent
-    REFUNDED = "refunded"  # Refunded to user
-    DISPUTED = "disputed"  # Under arbitration
+    LOCKED = "locked"  # Held in platform escrow during task execution
+    RELEASED = "released"  # Released to creator
+    REFUNDED = "refunded"  # Returned to user
+    DISPUTED = "disputed"  # Under platform dispute handling
 
 
 class DisputeStatus(str, Enum):
-    """Dispute resolution status"""
+    """Dispute lifecycle (centralized platform)"""
     OPEN = "open"
-    FIRST_INSTANCE = "first_instance"  # Level 1: 1 arbitrator
-    SECOND_INSTANCE = "second_instance"  # Level 2: 3 arbitrators
-    FINAL_INSTANCE = "final_instance"  # Level 3: 5 arbitrators
+    UNDER_REVIEW = "under_review"  # Platform staff / policy review
+    COMMUNITY_VOTE = "community_vote"  # Optional community advisory round
     RESOLVED = "resolved"
     CLOSED = "closed"
-
-
-class ArbitrationLevel(int, Enum):
-    """Arbitration level enum"""
-    FIRST = 1  # 1 arbitrator
-    SECOND = 2  # 3 arbitrators
-    THIRD = 3  # 5 arbitrators
 
 
 class ArbitrationResult(str, Enum):
@@ -127,7 +119,9 @@ class AgentCard(BaseModel):
     creator_name: Optional[str] = None
     
     # Pricing
-    price_per_task: float = Field(..., ge=0, description="Price in AAC tokens per task")
+    price_per_task: float = Field(
+        ..., ge=0, description="Price per task in platform billing units (e.g. fiat or demo credits)"
+    )
     
     # Reputation metrics
     credibility_score: float = Field(default=3.0, ge=1.0, le=5.0,
@@ -209,7 +203,7 @@ class Task(BaseModel):
     error_message: Optional[str] = None
     
     # Payment
-    price_locked: float = Field(..., ge=0, description="Locked token amount")
+    price_locked: float = Field(..., ge=0, description="Amount held in escrow for this task")
     
     # Timing
     created_at: datetime = Field(default_factory=datetime.utcnow)
@@ -224,9 +218,7 @@ class Task(BaseModel):
 
 class Payment(BaseModel):
     """
-    Payment transaction record
-    
-    Tracks token transfers between users and agents.
+    Payment / escrow record for a task (platform ledger).
     """
     id: str
     task_id: str
@@ -251,9 +243,7 @@ class Payment(BaseModel):
 
 
 class Transaction(BaseModel):
-    """
-    Generic token transaction for ledger
-    """
+    """Ledger movement between platform accounts (audit trail)."""
     id: str
     from_address: str
     to_address: str
@@ -262,7 +252,7 @@ class Transaction(BaseModel):
     task_id: Optional[str] = None
     dispute_id: Optional[str] = None
     timestamp: datetime = Field(default_factory=datetime.utcnow)
-    signature: Optional[str] = None  # For verification
+    signature: Optional[str] = None  # Optional external PSP reference
 
 
 class DisputeEvidence(BaseModel):
@@ -274,7 +264,7 @@ class DisputeEvidence(BaseModel):
 
 
 class ArbitratorDecision(BaseModel):
-    """Individual arbitrator decision"""
+    """Single mediation / advisory decision (staff or community voter)."""
     arbitrator_id: str
     decision: ArbitrationResult
     intent: Intent
@@ -285,12 +275,7 @@ class ArbitratorDecision(BaseModel):
 
 class Dispute(BaseModel):
     """
-    Dispute case for arbitration
-    
-    Three-level arbitration system:
-    - Level 1 (First): 1 high-trust arbitrator
-    - Level 2 (Second): 3 high-trust arbitrators  
-    - Level 3 (Final): 5 high-trust arbitrators
+    Dispute handled by the platform: staff mediation first, optional community round.
     """
     id: str
     task_id: str
@@ -308,42 +293,27 @@ class Dispute(BaseModel):
     
     # Status
     status: DisputeStatus = Field(default=DisputeStatus.OPEN)
-    current_level: ArbitrationLevel = Field(default=ArbitrationLevel.FIRST)
+    platform_mediator_id: Optional[str] = None
+    platform_decision: Optional[ArbitratorDecision] = None
+    community_decisions: List[ArbitratorDecision] = Field(default_factory=list)
     
-    # Arbitrators assigned at each level
-    level_1_arbitrator: Optional[str] = None
-    level_2_arbitrators: List[str] = Field(default_factory=list)
-    level_3_arbitrators: List[str] = Field(default_factory=list)
-    
-    # Decisions
-    level_1_decision: Optional[ArbitratorDecision] = None
-    level_2_decisions: List[ArbitratorDecision] = Field(default_factory=list)
-    level_3_decisions: List[ArbitratorDecision] = Field(default_factory=list)
-    
-    # Final result
+    # Final result (set when case is closed)
     final_decision: Optional[ArbitrationResult] = None
     final_intent: Optional[Intent] = None
     final_compensation: float = Field(default=0, ge=0)
     
     # Timing
     created_at: datetime = Field(default_factory=datetime.utcnow)
-    escalated_at: Optional[datetime] = None
     resolved_at: Optional[datetime] = None
-    
-    # Escalation trigger
-    escalation_requested_by: Optional[str] = None  # user_id or agent_id
+    community_review_requested_at: Optional[datetime] = None
+    community_review_requested_by: Optional[str] = None
 
 
 class ArbitrationConfig(BaseModel):
-    """Configuration for arbitration system"""
-    # Compensation limits (multiplier of original payment)
+    """Caps for dispute outcomes (policy knobs for the platform)."""
     max_compensation_non_intentional: float = Field(default=5.0, ge=1.0, le=10.0)
     max_compensation_intentional: float = Field(default=15.0, ge=1.0, le=20.0)
-    
-    # Arbitrator requirements
-    min_trust_score_level_1: float = Field(default=70.0, ge=0, le=100)
-    min_trust_score_level_2: float = Field(default=80.0, ge=0, le=100)
-    min_trust_score_level_3: float = Field(default=90.0, ge=0, le=100)
+    community_votes_required: int = Field(default=3, ge=1, le=50)
 
 
 class User(BaseModel):
@@ -352,9 +322,11 @@ class User(BaseModel):
     name: Optional[str] = None
     email: Optional[str] = None
     
-    # Token balance
-    token_balance: float = Field(default=1000.0, ge=0,
-                                  description="Initial allocation: 1000 AAC tokens")
+    token_balance: float = Field(
+        default=1000.0,
+        ge=0,
+        description="Account balance in platform billing units (demo default 1000)",
+    )
     
     # Stats
     total_tasks_submitted: int = Field(default=0)
@@ -371,9 +343,11 @@ class Creator(BaseModel):
     name: str
     email: Optional[str] = None
     
-    # Token balance (earnings)
-    token_balance: float = Field(default=1000.0, ge=0,
-                                  description="Initial allocation: 1000 AAC tokens")
+    token_balance: float = Field(
+        default=1000.0,
+        ge=0,
+        description="Creator balance in platform billing units (demo default 1000)",
+    )
     total_earned: float = Field(default=0.0)
     
     # Agents owned

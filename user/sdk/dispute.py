@@ -13,7 +13,7 @@ from ...core.models import (
 )
 from ...core.database import Database
 from ...core.arbitration import ArbitrationSystem
-from ...core.token import TokenSystem
+from ...core.escrow import EscrowLedger
 
 
 class DisputeError(Exception):
@@ -32,11 +32,11 @@ class DisputeManager:
         self,
         database: Database,
         arbitration_system: ArbitrationSystem,
-        token_system: TokenSystem
+        ledger: EscrowLedger,
     ):
         self.db = database
         self.arbitration = arbitration_system
-        self.tokens = token_system
+        self.ledger = ledger
     
     async def file_dispute(
         self,
@@ -123,25 +123,24 @@ class DisputeManager:
         # In production, query database
         return []
     
+    async def request_community_review(
+        self,
+        dispute_id: str,
+        user: User,
+    ) -> Dispute:
+        """Optional community advisory phase after platform review."""
+        return await self.arbitration.request_community_review(
+            dispute_id=dispute_id,
+            requested_by=user.id,
+        )
+
     async def escalate(
         self,
         dispute_id: str,
-        user: User
+        user: User,
     ) -> Dispute:
-        """
-        Escalate dispute to next level
-        
-        Args:
-            dispute_id: Dispute ID
-            user: Requesting user
-            
-        Returns:
-            Escalated dispute
-        """
-        return await self.arbitration.escalate_dispute(
-            dispute_id=dispute_id,
-            requested_by=user.id
-        )
+        """Deprecated: use ``request_community_review``."""
+        return await self.request_community_review(dispute_id, user)
     
     async def get_status(self, dispute_id: str) -> Dict[str, Any]:
         """

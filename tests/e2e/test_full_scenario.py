@@ -12,7 +12,7 @@ from aac_protocol.core.models import (
     AgentSelectorMode
 )
 from aac_protocol.core.database import Database
-from aac_protocol.core.token import TokenSystem
+from aac_protocol.core.escrow import EscrowLedger
 from aac_protocol.core.arbitration import ArbitrationSystem, ArbitrationConfig
 from aac_protocol.creator.sdk.registry import RegistryClient
 from aac_protocol.creator.sdk.card import AgentCardBuilder
@@ -28,7 +28,7 @@ async def full_system():
     await db.create_tables()
     
     # Setup core systems
-    tokens = TokenSystem(db)
+    tokens = EscrowLedger(db)
     arbitration = ArbitrationSystem(db, tokens, ArbitrationConfig())
     
     # Setup clients
@@ -248,14 +248,11 @@ class TestCompleteWorkflow:
             attachments=[{"type": "image", "url": "http://example.com/evidence.png"}],
         )
         
-        # Step 3: Assign arbitrators
-        # Add high-trust creator to arbitrator pool
-        await sys["arbitration"].add_to_arbitrator_pool("high-trust-agent-001")
-        
+        # Step 3: Platform picks up the case
         await sys["arbitration"].assign_arbitrators(dispute.id)
         
         dispute_updated = await sys["db"].get_dispute(dispute.id)
-        assert dispute_updated.status == DisputeStatus.FIRST_INSTANCE
+        assert dispute_updated.status == DisputeStatus.UNDER_REVIEW
         
         # Step 4: Submit arbitrator decision
         await sys["arbitration"].submit_arbitration_decision(
@@ -279,13 +276,9 @@ class TestCompleteWorkflow:
         # For this test, we verify the decision is correct
     
     @pytest.mark.asyncio
-    async def test_escalation_to_second_level(self, full_system):
+    async def test_community_review_after_platform(self, full_system):
         """
-        Test dispute escalation:
-        1. File dispute
-        2. Get level 1 decision
-        3. Escalate to level 2
-        4. Level 2 arbitrators assigned
+        Optional community advisory phase after platform review has started.
         """
         sys = full_system
         user = sys["user"]
@@ -318,8 +311,6 @@ class TestCompleteWorkflow:
             claimed_amount=20.0,
         )
         
-        # Assign and get level 1 decision
-        await sys["arbitration"].add_to_arbitrator_pool("arb-001")
         await sys["arbitration"].assign_arbitrators(dispute.id)
         
         await sys["arbitration"].submit_arbitration_decision(
@@ -331,12 +322,10 @@ class TestCompleteWorkflow:
             reasoning="Insufficient evidence",
         )
         
-        # User escalates
         escalated = await sys["arbitration"].escalate_dispute(dispute.id, user.id)
         
-        assert escalated.current_level == ArbitrationLevel.SECOND
-        assert escalated.status == DisputeStatus.SECOND_INSTANCE
-        assert escalated.escalation_requested_by == user.id
+        assert escalated.status == DisputeStatus.COMMUNITY_VOTE
+        assert escalated.community_review_requested_by == user.id
     
     @pytest.mark.asyncio
     async def test_multiple_agents_competition(self, full_system):

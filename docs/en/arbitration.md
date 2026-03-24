@@ -8,6 +8,10 @@
 
 ---
 
+> **Aligned with the current codebase (centralized)**  
+> Disputes are **platform-operated**: default flow is intake → **single staff mediation outcome** (`platform_decision`) → payout under policy caps. An optional **community advisory round** (`COMMUNITY_VOTE`) aggregates multiple opinions by majority vote.  
+> Sections below that describe a **three-level** system are kept for historical context and **do not** match the default implementation in this repository.
+
 ## Table of Contents
 
 1. [Arbitration Mechanism Overview](#1-arbitration-mechanism-overview)

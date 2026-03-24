@@ -93,7 +93,7 @@ class PaymentRecord(Base):
 
 
 class DisputeRecord(Base):
-    """Database record for Dispute"""
+    """Database record for Dispute (platform mediation + optional community round)"""
     __tablename__ = "disputes"
     
     id = Column(String, primary_key=True)
@@ -106,20 +106,16 @@ class DisputeRecord(Base):
     user_evidence = Column(JSON, default=list)
     agent_evidence = Column(JSON, default=list)
     status = Column(String, default="open")
-    current_level = Column(Integer, default=1)
-    level_1_arbitrator = Column(String)
-    level_2_arbitrators = Column(JSON, default=list)
-    level_3_arbitrators = Column(JSON, default=list)
-    level_1_decision = Column(JSON)
-    level_2_decisions = Column(JSON, default=list)
-    level_3_decisions = Column(JSON, default=list)
+    platform_mediator_id = Column(String)
+    platform_decision = Column(JSON)
+    community_decisions = Column(JSON, default=list)
     final_decision = Column(String)
     final_intent = Column(String)
     final_compensation = Column(Float, default=0)
     created_at = Column(DateTime, default=datetime.utcnow)
-    escalated_at = Column(DateTime)
     resolved_at = Column(DateTime)
-    escalation_requested_by = Column(String)
+    community_review_requested_at = Column(DateTime)
+    community_review_requested_by = Column(String)
 
 
 class UserRecord(Base):
@@ -566,20 +562,18 @@ class Database:
                 user_evidence=[e.model_dump() for e in dispute.user_evidence],
                 agent_evidence=[e.model_dump() for e in dispute.agent_evidence],
                 status=dispute.status.value,
-                current_level=dispute.current_level.value,
-                level_1_arbitrator=dispute.level_1_arbitrator,
-                level_2_arbitrators=dispute.level_2_arbitrators,
-                level_3_arbitrators=dispute.level_3_arbitrators,
-                level_1_decision=dispute.level_1_decision.model_dump() if dispute.level_1_decision else None,
-                level_2_decisions=[d.model_dump() for d in dispute.level_2_decisions],
-                level_3_decisions=[d.model_dump() for d in dispute.level_3_decisions],
+                platform_mediator_id=dispute.platform_mediator_id,
+                platform_decision=dispute.platform_decision.model_dump()
+                if dispute.platform_decision
+                else None,
+                community_decisions=[d.model_dump() for d in dispute.community_decisions],
                 final_decision=dispute.final_decision.value if dispute.final_decision else None,
                 final_intent=dispute.final_intent.value if dispute.final_intent else None,
                 final_compensation=dispute.final_compensation,
                 created_at=dispute.created_at,
-                escalated_at=dispute.escalated_at,
                 resolved_at=dispute.resolved_at,
-                escalation_requested_by=dispute.escalation_requested_by,
+                community_review_requested_at=dispute.community_review_requested_at,
+                community_review_requested_by=dispute.community_review_requested_by,
             )
             session.add(record)
             return dispute
@@ -603,25 +597,24 @@ class Database:
                 .where(DisputeRecord.id == dispute.id)
                 .values(
                     status=dispute.status.value,
-                    current_level=dispute.current_level.value,
-                    level_1_arbitrator=dispute.level_1_arbitrator,
-                    level_2_arbitrators=dispute.level_2_arbitrators,
-                    level_3_arbitrators=dispute.level_3_arbitrators,
-                    level_1_decision=dispute.level_1_decision.model_dump() if dispute.level_1_decision else None,
-                    level_2_decisions=[d.model_dump() for d in dispute.level_2_decisions],
-                    level_3_decisions=[d.model_dump() for d in dispute.level_3_decisions],
+                    platform_mediator_id=dispute.platform_mediator_id,
+                    platform_decision=dispute.platform_decision.model_dump()
+                    if dispute.platform_decision
+                    else None,
+                    community_decisions=[d.model_dump() for d in dispute.community_decisions],
                     final_decision=dispute.final_decision.value if dispute.final_decision else None,
                     final_intent=dispute.final_intent.value if dispute.final_intent else None,
                     final_compensation=dispute.final_compensation,
-                    escalated_at=dispute.escalated_at,
                     resolved_at=dispute.resolved_at,
+                    community_review_requested_at=dispute.community_review_requested_at,
+                    community_review_requested_by=dispute.community_review_requested_by,
                 )
             )
             return dispute
     
     def _dispute_from_record(self, record: DisputeRecord) -> Dispute:
         """Convert database record to Dispute model"""
-        from .models import DisputeEvidence, ArbitratorDecision
+        from .models import DisputeEvidence, ArbitratorDecision, ArbitrationResult, Intent
         
         dispute = Dispute(
             id=record.id,
@@ -632,43 +625,34 @@ class Database:
             user_claim=record.user_claim,
             claimed_amount=record.claimed_amount,
             status=DisputeStatus(record.status),
-            current_level=ArbitrationLevel(record.current_level),
-            level_1_arbitrator=record.level_1_arbitrator,
-            level_2_arbitrators=record.level_2_arbitrators or [],
-            level_3_arbitrators=record.level_3_arbitrators or [],
+            platform_mediator_id=record.platform_mediator_id,
             final_compensation=record.final_compensation,
             created_at=record.created_at,
-            escalated_at=record.escalated_at,
             resolved_at=record.resolved_at,
-            escalation_requested_by=record.escalation_requested_by,
+            community_review_requested_at=record.community_review_requested_at,
+            community_review_requested_by=record.community_review_requested_by,
         )
         
-        # Parse evidence
         if record.user_evidence:
             dispute.user_evidence = [DisputeEvidence(**e) for e in record.user_evidence]
         if record.agent_evidence:
             dispute.agent_evidence = [DisputeEvidence(**e) for e in record.agent_evidence]
-        
-        # Parse decisions
-        if record.level_1_decision:
-            dispute.level_1_decision = ArbitratorDecision(**record.level_1_decision)
-        if record.level_2_decisions:
-            dispute.level_2_decisions = [ArbitratorDecision(**d) for d in record.level_2_decisions]
-        if record.level_3_decisions:
-            dispute.level_3_decisions = [ArbitratorDecision(**d) for d in record.level_3_decisions]
-        
+        if record.platform_decision:
+            dispute.platform_decision = ArbitratorDecision(**record.platform_decision)
+        if record.community_decisions:
+            dispute.community_decisions = [
+                ArbitratorDecision(**d) for d in record.community_decisions
+            ]
         if record.final_decision:
-            from .models import ArbitrationResult
             dispute.final_decision = ArbitrationResult(record.final_decision)
         if record.final_intent:
-            from .models import Intent
             dispute.final_intent = Intent(record.final_intent)
         
         return dispute
     
     # Transaction operations
     async def record_transaction(self, transaction: Transaction) -> Transaction:
-        """Record a token transaction"""
+        """Append a ledger movement (platform audit trail)."""
         async with self.session() as session:
             record = TransactionRecord(
                 id=transaction.id,

@@ -1,12 +1,8 @@
 """
 AAC Protocol Core Module
 
-This module contains the core shared components of the AAC Protocol:
-- Data models (Pydantic)
-- Token system
-- Database interface
-- JSON-RPC framework
-- Arbitration system
+Shared components: data models, platform escrow ledger, database, JSON-RPC,
+and centralized dispute mediation.
 """
 
 __version__ = "0.1.0"
@@ -20,13 +16,13 @@ from .models import (
     PaymentStatus,
     Dispute,
     DisputeStatus,
-    ArbitrationLevel,
     ArbitrationResult,
     User,
     Creator,
+    Transaction,
 )
 
-from .token import TokenSystem, Transaction
+from .escrow import EscrowLedger, TokenSystem
 
 __all__ = [
     "AgentCard",
@@ -37,10 +33,10 @@ __all__ = [
     "PaymentStatus",
     "Dispute",
     "DisputeStatus",
-    "ArbitrationLevel",
     "ArbitrationResult",
     "User",
     "Creator",
+    "EscrowLedger",
     "TokenSystem",
     "Transaction",
 ]

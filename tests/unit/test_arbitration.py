@@ -7,11 +7,11 @@ from datetime import datetime
 
 from aac_protocol.core.models import (
     User, Creator, AgentCard, AgentID, Task, TaskInput, Dispute,
-    DisputeEvidence, DisputeStatus, ArbitrationLevel, ArbitrationResult,
+    DisputeEvidence, DisputeStatus, ArbitrationResult,
     ArbitratorDecision, Intent
 )
 from aac_protocol.core.database import Database
-from aac_protocol.core.token import TokenSystem
+from aac_protocol.core.escrow import EscrowLedger
 from aac_protocol.core.arbitration import ArbitrationSystem, ArbitrationConfig, InvalidDisputeError
 
 
@@ -26,12 +26,12 @@ async def database():
 @pytest.fixture
 async def arbitration_system(database):
     """Create arbitration system"""
-    tokens = TokenSystem(database)
+    ledger = EscrowLedger(database)
     config = ArbitrationConfig(
         max_compensation_non_intentional=5.0,
         max_compensation_intentional=15.0,
     )
-    return ArbitrationSystem(database, tokens, config)
+    return ArbitrationSystem(database, ledger, config)
 
 
 class TestArbitrationSystem:
@@ -78,7 +78,6 @@ class TestArbitrationSystem:
         assert dispute.user_id == "user-001"
         assert dispute.creator_id == "creator-001"
         assert dispute.status == DisputeStatus.OPEN
-        assert dispute.current_level == ArbitrationLevel.FIRST
     
     @pytest.mark.asyncio
     async def test_file_dispute_task_not_found(self, database, arbitration_system):
@@ -226,9 +225,9 @@ class TestArbitrationSystem:
             reasoning="Evidence supports user claim",
         )
         
-        assert updated.level_1_decision is not None
-        assert updated.level_1_decision.decision == ArbitrationResult.IN_FAVOR_OF_USER
-        assert updated.level_1_decision.compensation_amount == 15.0
+        assert updated.platform_decision is not None
+        assert updated.platform_decision.decision == ArbitrationResult.IN_FAVOR_OF_USER
+        assert updated.platform_decision.compensation_amount == 15.0
     
     @pytest.mark.asyncio
     async def test_resolve_dispute(self, database, arbitration_system):
@@ -333,8 +332,7 @@ class TestArbitrationSystem:
         # Escalate
         escalated = await arbitration_system.escalate_dispute(dispute.id, "user-006")
         
-        assert escalated.current_level == ArbitrationLevel.SECOND
-        assert escalated.status == DisputeStatus.SECOND_INSTANCE
+        assert escalated.status == DisputeStatus.COMMUNITY_VOTE
 
 
 class TestArbitrationConfig:
@@ -346,9 +344,7 @@ class TestArbitrationConfig:
         
         assert config.max_compensation_non_intentional == 5.0
         assert config.max_compensation_intentional == 15.0
-        assert config.min_trust_score_level_1 == 70.0
-        assert config.min_trust_score_level_2 == 80.0
-        assert config.min_trust_score_level_3 == 90.0
+        assert config.community_votes_required == 3
     
     def test_custom_config(self):
         """Test custom configuration"""

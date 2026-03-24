@@ -49,7 +49,7 @@ class AgentCardBuilder:
         return self
     
     def with_price(self, price: float) -> "AgentCardBuilder":
-        """Set price per task (AAC tokens)"""
+        """Set price per task (platform billing units)"""
         self._price = max(0, price)
         return self
     

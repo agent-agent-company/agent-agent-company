@@ -8,9 +8,9 @@ from datetime import datetime
 from aac_protocol.core.models import (
     AgentCard, AgentID, Task, TaskInput, TaskOutput, TaskStatus,
     Payment, PaymentStatus, User, Creator, AgentStatus,
-    Dispute, DisputeEvidence, DisputeStatus, ArbitrationLevel,
+    Dispute, DisputeEvidence, DisputeStatus,
     ArbitratorDecision, ArbitrationResult, Intent, Transaction,
-    DiscoveryQuery, AgentSelectorMode, AgentCapability
+    DiscoveryQuery, AgentSelectorMode
 )
 
 
@@ -207,7 +207,7 @@ class TestDispute:
         
         assert dispute.id == "dispute-001"
         assert dispute.status == DisputeStatus.OPEN
-        assert dispute.current_level == ArbitrationLevel.FIRST
+        assert dispute.platform_mediator_id is None
     
     def test_dispute_evidence(self):
         """Test dispute evidence"""

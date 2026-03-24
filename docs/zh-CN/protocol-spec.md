@@ -7,7 +7,7 @@
 **作者**: 宋梓铭 (Jack Song / Ziming Song)  
 **作者介绍**: 北京市朝阳区赫德的初中生，在家花费2小时的时间使用Cursor AI独立完成这项创作。
 
-**协议说明**: 参考Google A2A协议实现方式，构建的去中心化Agent服务市场协议。
+**协议说明**: 参考 Google A2A 思路，构建 **中心化托管平台** 上的 Agent 服务市场参考实现（标准 Agent Card、JSON-RPC、发现、评分、托管资金、平台争议处理）。
 
 ---
 
@@ -20,7 +20,7 @@
 5. [数据模型规范](#5-数据模型规范)
 6. [通信协议规范](#6-通信协议规范)
 7. [代币经济模型](#7-代币经济模型)
-8. [争议仲裁机制](#8-争议仲裁机制)
+8. [争议处理机制](#8-争议处理机制平台托管)
 9. [安全与隐私](#9-安全与隐私)
 10. [附录](#10-附录)
 
@@ -32,12 +32,12 @@
 
 AAC (Agent-Agent Company) 协议是一个开源的智能体服务市场**架构原型**。它借鉴了Google A2A (Agent-to-Agent) 协议的设计理念，旨在构建一个连接服务需求方（用户）与服务提供方（创作者/智能体）的平台。
 
-> **⚠️ 架构现状声明**：当前实现是**中心化系统具备可审计性**，而非完全去中心化。文档中提到的"去中心化特性"（VRF、DHT、Merkle证明等）是架构占位符，为未来的真正去中心化做准备。详见各模块文档中的具体限制说明。
+> **架构定位**：本仓库 **明确采用中心化信任模型**（平台运营方托管数据与资金账本）。已 **移除** 原型中的 DHT、Merkle 自证、链式多签、VRF 抽选仲裁、三级链式仲裁等“去中心化占位”实现；争议默认 **平台调解**，可选 **社区评议**。对外支付通过法币/支付网关或主流加密货币结算，由集成方实现。
 
 在AAC协议中：
 - **创作者**可以注册和发布自己的AI智能体服务
 - **用户**可以发现并使用这些智能体服务完成任务
-- **代币系统**实现自动化的价值交换
+- **平台账本与托管** 记录任务冻结、结算、退款与赔付（单位可为法币等价或演示积分）
 - **仲裁机制**保障交易安全与公平
 
 ### 1.2 协议目标
@@ -293,17 +293,20 @@ class Payment:
 
 ```python
 class Dispute:
-    id: str                       # 争议ID
-    task_id: str                  # 关联任务ID
-    user_id: str                  # 申诉用户
-    agent_id: str                 # 被诉Agent
-    creator_id: str               # 被诉Creator
-    user_claim: str               # 申诉内容
-    claimed_amount: float         # 索赔金额
-    status: DisputeStatus         # 争议状态
-    current_level: ArbitrationLevel # 当前仲裁级别
-    final_decision: Optional[ArbitrationResult] # 最终决定
-    final_compensation: float     # 最终赔偿金额
+    id: str
+    task_id: str
+    user_id: str
+    agent_id: str
+    creator_id: str
+    user_claim: str
+    claimed_amount: float
+    status: DisputeStatus              # open | under_review | community_vote | resolved | closed
+    platform_mediator_id: Optional[str]
+    platform_decision: Optional[ArbitratorDecision]
+    community_decisions: List[ArbitratorDecision]
+    final_decision: Optional[ArbitrationResult]
+    final_intent: Optional[Intent]
+    final_compensation: float
 ```
 
 ---
@@ -420,38 +423,21 @@ data: {"type": "result", "content": "..."}
 
 ---
 
-## 8. 争议仲裁机制
+## 8. 争议处理机制（平台托管）
 
-### 8.1 仲裁原则
+### 8.1 原则
 
-AAC协议采用**三级仲裁**机制确保公平：
+1. **平台责任**：受理、举证、调解与执行赔付由运营方在规则与法律框架下完成。  
+2. **透明可追溯**：任务、支付、争议与账本流水在平台侧可查（受隐私与合规约束）。  
+3. **可选社区评议**：在 `COMMUNITY_VOTE` 状态下收集 `community_decisions`，达到配置人数后多数决聚合，再 `resolve`。  
+4. **赔偿上限**：非故意 / 故意情形仍适用倍数上限（见 8.2）。
 
-1. **便捷性**: 用户可以便捷地提交争议
-2. **专业性**: 仲裁员由公信力高的Agent担任
-3. **逐级审查**: 不满意可向上级申诉
-4. **快速处理**: 每级设置处理时限
+### 8.2 状态机概要
 
-### 8.2 三级仲裁
-
-#### 8.2.1 一审 (First Instance)
-
-- **仲裁员**: 1名高公信力Agent (信任分≥70)
-- **时限**: 72小时
-- **结果**: 可接受或上诉
-
-#### 8.2.2 二审 (Second Instance)
-
-- **仲裁员**: 3名高公信力Agent (信任分≥80)
-- **触发**: 任一方不服一审判决并上诉
-- **时限**: 120小时
-- **结果**: 多数决，可接受或继续上诉
-
-#### 8.2.3 终审 (Final Instance)
-
-- **仲裁员**: 5名高公信力Agent (信任分≥90)
-- **触发**: 任一方不服二审判决并上诉
-- **时限**: 168小时
-- **结果**: 最终判决，不可再上诉
+- **OPEN**：用户发起争议，任务与支付进入争议态。  
+- **UNDER_REVIEW**：平台工作人员处理，形成 `platform_decision`。  
+- **COMMUNITY_VOTE**（可选）：开放评议，聚合多条意见。  
+- **RESOLVED**：按决定扣款/赔付并更新 Agent/Creator 状态（如恶意情形下降权）。
 
 ### 8.3 赔偿规则
 

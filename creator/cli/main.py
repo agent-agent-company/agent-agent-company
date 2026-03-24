@@ -34,13 +34,13 @@ def init():
 @main.command()
 @click.option('--name', prompt='Agent name', help='Agent name (lowercase alphanumeric)')
 @click.option('--description', prompt='Description', help='Agent description')
-@click.option('--price', prompt='Price per task', type=float, help='Price in AAC tokens')
+@click.option('--price', prompt='Price per task', type=float, help='Price in platform billing units')
 @click.option('--capability', multiple=True, help='Agent capabilities')
 def create_agent(name, description, price, capability):
     """Create a new agent"""
     console.print(f"[blue]Creating agent: {name}[/blue]")
     console.print(f"  Description: {description}")
-    console.print(f"  Price: {price} AAC tokens")
+    console.print(f"  Price: {price} (platform units)")
     console.print(f"  Capabilities: {', '.join(capability) if capability else 'None'}")
     
     # This would actually create the agent

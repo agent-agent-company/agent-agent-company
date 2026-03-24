@@ -11,7 +11,7 @@ setup(
     version="0.1.0",
     author="AAC Protocol Team",
     author_email="",
-    description="Agent-Agent Company Protocol - A decentralized agent marketplace protocol",
+    description="Agent-Agent Company Protocol - Centralized AI agent marketplace reference (JSON-RPC, Agent Cards, escrow, platform disputes)",
     long_description=long_description,
     long_description_content_type="text/markdown",
     url="https://github.com/AAC-Protocol/aac-protocol",

@@ -8,7 +8,7 @@ import asyncio
 
 from aac_protocol.core.models import User, TaskInput, AgentSelectorMode
 from aac_protocol.core.database import Database
-from aac_protocol.core.token import TokenSystem
+from aac_protocol.core.escrow import EscrowLedger
 from aac_protocol.user.sdk.client import DiscoveryClient
 from aac_protocol.user.sdk.task import TaskManager, TaskBuilder
 
@@ -24,7 +24,7 @@ async def main():
     db = Database("sqlite+aiosqlite:///:memory:")
     await db.create_tables()
     
-    tokens = TokenSystem(db)
+    tokens = EscrowLedger(db)
     discovery = DiscoveryClient("http://localhost:8000")
     tasks = TaskManager(db, tokens, discovery)
     
@@ -37,7 +37,7 @@ async def main():
     await db.create_user(user)
     
     print(f"\nUser: {user.name}")
-    print(f"Balance: {user.token_balance} AAC tokens")
+    print(f"Balance: {user.token_balance} (platform units)")
     
     # Example 1: Submit with known agent
     print("\n" + "=" * 50)
@@ -57,7 +57,7 @@ async def main():
     )
     
     print(f"Agent: {agent.name}")
-    print(f"Price: {agent.price_per_task} AAC tokens")
+    print(f"Price: {agent.price_per_task} (platform units)")
     
     task_input = TaskInput(
         content="What's the weather in New York?",

@@ -26,7 +26,7 @@ def init():
     console.print(Panel(
         "[green]Welcome to AAC Protocol User CLI[/green]\n\n"
         "This tool helps you discover and work with agents on the AAC Protocol network.\n\n"
-        "Your account has been initialized with: [cyan]1,000 AAC tokens[/cyan]\n\n"
+        "Your account has been initialized with: [cyan]1,000 demo credits[/cyan] (platform ledger)\n\n"
         "Get started by:\n"
         "  1. Discover agents: [cyan]aac-user discover[/cyan]\n"
         "  2. Submit a task: [cyan]aac-user submit-task[/cyan]",
@@ -57,7 +57,7 @@ def discover(keyword, min_trust, max_price, sort):
         "weather-001",
         "Weather Agent",
         "Provides weather forecasts for any location",
-        "2.0 AAC",
+        "2.0 cr",
         "85.5",
         "4.5"
     )
@@ -65,7 +65,7 @@ def discover(keyword, min_trust, max_price, sort):
         "translate-001",
         "Translation Agent",
         "Translates text between 50+ languages",
-        "3.0 AAC",
+        "3.0 cr",
         "72.3",
         "4.2"
     )
@@ -73,7 +73,7 @@ def discover(keyword, min_trust, max_price, sort):
         "data-001",
         "Data Analyst",
         "Analyzes data and generates insights",
-        "5.0 AAC",
+        "5.0 cr",
         "91.2",
         "4.8"
     )
@@ -101,18 +101,18 @@ def submit_task(agent_id, content, mode):
     
     console.print("\n[green]Task completed successfully![/green]")
     console.print("Task ID: task-abc123def456")
-    console.print("Cost: 2.5 AAC tokens")
+    console.print("Cost: 2.5 (platform units)")
 
 
 @main.command()
 def balance():
-    """Check token balance"""
+    """Check account balance (demo)"""
     console.print(Panel(
         "[green]Account Balance[/green]\n\n"
-        "Current Balance: [cyan]985.5 AAC[/cyan]\n"
-        "Locked (in tasks): [yellow]14.5 AAC[/cyan]\n"
-        "Available: [green]971.0 AAC[/cyan]\n\n"
-        "Total Spent: [red]14.5 AAC[/cyan]\n"
+        "Current Balance: [cyan]985.5[/cyan]\n"
+        "Locked (in tasks): [yellow]14.5[/yellow]\n"
+        "Available: [green]971.0[/green]\n\n"
+        "Total Spent: [red]14.5[/red]\n"
         "Tasks Completed: [blue]5[/blue]",
         title="Balance",
         border_style="cyan"

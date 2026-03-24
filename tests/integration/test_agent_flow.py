@@ -10,7 +10,7 @@ from aac_protocol.core.models import (
     AgentStatus, TaskStatus, PaymentStatus, AgentSelectorMode
 )
 from aac_protocol.core.database import Database
-from aac_protocol.core.token import TokenSystem
+from aac_protocol.core.escrow import EscrowLedger
 from aac_protocol.creator.sdk.registry import RegistryClient
 from aac_protocol.creator.sdk.card import AgentCardBuilder
 from aac_protocol.user.sdk.client import DiscoveryClient, AgentSelector
@@ -24,7 +24,7 @@ async def test_environment():
     db = Database("sqlite+aiosqlite:///:memory:")
     await db.create_tables()
     
-    tokens = TokenSystem(db)
+    tokens = EscrowLedger(db)
     registry = RegistryClient(db)
     discovery = DiscoveryClient("http://localhost:8000")  # Mock URL
     tasks = TaskManager(db, tokens, discovery)

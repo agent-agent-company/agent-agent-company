@@ -15,7 +15,7 @@ from ...core.models import (
     Payment, PaymentStatus
 )
 from ...core.database import Database
-from ...core.token import TokenSystem
+from ...core.escrow import EscrowLedger
 from .client import DiscoveryClient, AgentSelector, AgentSelectorMode
 
 
@@ -39,11 +39,11 @@ class TaskManager:
     def __init__(
         self,
         database: Database,
-        token_system: TokenSystem,
+        ledger: EscrowLedger,
         discovery_client: DiscoveryClient
     ):
         self.db = database
-        self.tokens = token_system
+        self.ledger = ledger
         self.discovery = discovery_client
         self.selector = AgentSelector(discovery_client)
         self._task_callbacks: Dict[str, Callable] = {}
@@ -72,7 +72,7 @@ class TaskManager:
         """
         # Check balance
         price = agent.price_per_task
-        balance = await self.tokens.get_available_balance(user.id)
+        balance = await self.ledger.get_available_balance(user.id)
         
         if balance < price:
             raise InsufficientFundsError(
@@ -96,7 +96,7 @@ class TaskManager:
         await self.db.create_task(task)
         
         # Lock tokens
-        await self.tokens.lock_tokens(user.id, task_id, price)
+        await self.ledger.lock_tokens(user.id, task_id, price)
         
         # Create pending payment
         payment = Payment(
@@ -252,7 +252,7 @@ class TaskManager:
     async def _complete_payment(self, task: Task, agent: AgentCard):
         """Complete payment to agent"""
         # Release locked tokens to creator
-        await self.tokens.release_payment(
+        await self.ledger.release_payment(
             task_id=task.id,
             user_id=task.user_id,
             creator_id=agent.creator_id,
@@ -272,7 +272,7 @@ class TaskManager:
     async def _refund_payment(self, task: Task):
         """Refund payment to user"""
         # Unlock and return tokens
-        await self.tokens.unlock_tokens(task.id)
+        await self.ledger.unlock_tokens(task.id)
         
         # Update payment status
         await self.db.update_payment_status(
