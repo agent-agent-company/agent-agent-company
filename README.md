@@ -390,8 +390,7 @@ This project is licensed under the Apache License 2.0 - see the [LICENSE](LICENS
 ## Contact / 联系方式
 
 - **GitHub**: https://github.com/AAC-Protocol/aac-protocol
-- **Documentation**: https://docs.aac-protocol.org
-- **Email**: [Maintainer Email]
+- **Email**: 2303281@stu.hdschools.org
 
 ---
 
